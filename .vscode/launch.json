@@ -5,11 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch",
+            "name": "Launch Client",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/CommunistCursor.exe",
-            "args": [],
+            "args": ["c"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false
+        },
+        {
+            "name": "Launch Server",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/CommunistCursor.exe",
+            "args": ["s"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
