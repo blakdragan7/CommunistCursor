@@ -25,6 +25,7 @@ enum SocketError
 
 extern int OSGetLastError();
 extern const std::string SockErrorToString(SocketError err);
+extern const std::string OSErrorToString(int os_err);
 extern SocketError OSErrorToSocketError(int os_err);
 
 #define OS_OR_SOCK_ERR OSErrorToSocketError(OSGetLastError())

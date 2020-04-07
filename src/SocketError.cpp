@@ -84,6 +84,15 @@ const std::string SockErrorToString(SocketError err)
     return "Invalid SocketError";
 }
 
+const std::string OSErrorToString(int os_err)
+{
+#ifdef _WIN32
+    return std::to_string(os_err);
+#else
+    return strerror(os_err);
+#endif
+}
+
 SocketError OSErrorToSocketError(int os_err)
 {
     switch(os_err)

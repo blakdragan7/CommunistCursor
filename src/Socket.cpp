@@ -183,7 +183,7 @@ Socket::Socket(const std::string& address, int port, bool useIPV6, SocketProtoco
     SocketError err = MakeSocket();
     if(err != SOCKET_E_SUCCESS)
     {
-        throw SocketException(err);
+        throw SocketException(err, lastOSErr);
     }
 }
 
