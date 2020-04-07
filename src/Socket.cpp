@@ -22,7 +22,7 @@
 #define INVALID_SOCKET -1
 #endif
 
-#ifndef SOCKET
+#ifndef _WIN32
 #define SOCKET NativeSocketHandle
 #endif
 
@@ -38,7 +38,7 @@
 #define SD_BOTH SDT_ALL
 #endif
 
-#ifndef closesocket
+#ifndef _WIN32
 #define closesocket close
 #endif
 

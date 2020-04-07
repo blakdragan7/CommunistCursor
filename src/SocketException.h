@@ -6,6 +6,10 @@
 
 #include "SocketError.h"
 
+#ifndef _NOEXCEPT
+#define _NOEXCEPT noexcept
+#endif
+
 class SocketException : public std::exception
 {
 private:
