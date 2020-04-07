@@ -13,6 +13,7 @@ private:
     
 public:
     SocketException(SocketError error);
+    SocketException(SocketError error, int osError);
     SocketException(const std::string info, SocketError error = SOCKET_E_OS_ERROR);
     const char * what () const throw ();
 };

@@ -16,6 +16,16 @@ SocketException::SocketException(SocketError error) : std::exception()
     this->info = SockErrorToString(error);
 }
 
+SocketException::SocketException(SocketError error, int osError) : std::exception()
+{
+    this->info = SockErrorToString(error);
+
+    if(error == SOCKET_E_OS_ERROR)
+    {
+        this->info += " With Internal Error:  " + std::to_string(OSGetLastError());
+    }
+}
+
 SocketException::SocketException(const std::string info, SocketError error) : std::exception()
 {
     if(error == SOCKET_E_OS_ERROR)

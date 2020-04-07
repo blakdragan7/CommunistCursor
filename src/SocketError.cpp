@@ -42,9 +42,15 @@ const std::string SockErrorToString(SocketError err)
         case SOCKET_E_NOT_INITIALIZED:
             return "Error Socket Subsystem Not Initialized";
         case SOCKET_E_INVALID_PARAM:
-            return "Error Invalid Paramater was passed"
+            return "Error Invalid Paramater was passed";
+        case SOCKET_E_INVALID_PROTO:
+            return "Error Invalid Protocol given for socket";
         case SOCKET_E_NETWORK:
             return "Error No Network for Socket";
+        case SOCKET_E_MUST_BE_BOUND:
+            return "Error Listen Called On Unboud Socket";
+        case SOCKET_E_NOT_LISTENING:
+            return "Error Accept Called On Socket When Socket isn't Listening for Connections";
         case SOCKET_E_OS_ERROR:
             return "OS Error";
         case SOCKET_E_UNKOWN:
