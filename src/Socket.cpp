@@ -5,12 +5,41 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#endif
-#ifdef __linux__
+#else
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <netdb.h>
 #endif
-#ifdef __unix__
-#include <sys/socket.h>
+
+#ifndef SOCKET_ERROR
+#define SOCKET_ERROR -1
+#endif
+
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
+#endif
+
+#ifndef SOCKET
+#define SOCKET NativeSocketHandle
+#endif
+
+#ifndef SD_SEND
+#define SD_SEND SDT_SEND
+#endif
+
+#ifndef SD_RECEIVE
+#define SD_RECEIVE SDT_RECEIVE
+#endif
+
+#ifndef SD_BOTH
+#define SD_BOTH SDT_ALL
+#endif
+
+#ifndef closesocket
+#define closesocket close
 #endif
 
 bool Socket::hasBeenInitialized = false;
@@ -25,7 +54,7 @@ Socket::~Socket()
     if(_internalSockInfo)
         freeaddrinfo((addrinfo*)_internalSockInfo);
     // free socket
-    if(sfd != (void*)INVALID_SOCKET)
+    if(sfd != (NativeSocketHandle)INVALID_SOCKET)
         closesocket((SOCKET)sfd);
 }
 
@@ -62,9 +91,13 @@ void Socket::OSSocketTeardown()
 
 SocketError Socket::MakeSocket()
 {
-    sfd = (void*)INVALID_SOCKET;
+    sfd = (NativeSocketHandle)INVALID_SOCKET;
 
-    MakeInternalSocketInfo();
+    SocketError e = MakeInternalSocketInfo();
+    if(e != SOCKET_E_SUCCESS)
+    {
+        return e;
+    }
 
     struct addrinfo* result = static_cast<addrinfo*>(_internalSockInfo);
 
@@ -187,7 +220,11 @@ SocketError Socket::Connect(int _port)
     if(_port != -1)
         port = _port;
 
-    MakeInternalSocketInfo();
+    SocketError e = MakeInternalSocketInfo();
+    if(e != SOCKET_E_SUCCESS)
+    {
+        return e;
+    }
 
     struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
     int iResult = 0;
@@ -224,7 +261,11 @@ SocketError Socket::Connect(const std::string& _address, int _port)
 
     address = _address;
 
-    MakeInternalSocketInfo();
+    SocketError e = MakeInternalSocketInfo();
+    if(e != SOCKET_E_SUCCESS)
+    {
+        return e;
+    }
 
     struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
     int iResult = 0;
@@ -400,7 +441,11 @@ SocketError Socket::Bind(int _port)
     if(_port != -1)
         port = _port;
 
-    MakeInternalSocketInfo();
+    SocketError e = MakeInternalSocketInfo();
+    if(e != SOCKET_E_SUCCESS)
+    {
+        return e;
+    }
 
     struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
 
@@ -428,7 +473,11 @@ SocketError Socket::Bind(const std::string& _address, int _port)
 
     address = _address;
 
-    MakeInternalSocketInfo();
+    SocketError e = MakeInternalSocketInfo();
+    if(e != SOCKET_E_SUCCESS)
+    {
+        return e;
+    }
 
     struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
 
@@ -451,7 +500,7 @@ SocketError Socket::Accept(NativeSocketHandle* acceptedSocket)
     *acceptedSocket = (NativeSocketHandle)INVALID_SOCKET;
     *acceptedSocket = (NativeSocketHandle)accept((SOCKET)sfd, NULL, NULL);
 
-    if(*acceptedSocket == (void*)INVALID_SOCKET)
+    if(*acceptedSocket == (NativeSocketHandle)INVALID_SOCKET)
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
@@ -474,7 +523,7 @@ SocketError Socket::Accept(Socket** acceptedSocket)
     }
 
     struct sockaddr_in clientInfo = {0};
-    int length = sizeof(clientInfo);
+    socklen_t length = sizeof(clientInfo);
     int iresult = getpeername((SOCKET)newSFD, (struct sockaddr*)&clientInfo, &length);
     if(iresult == SOCKET_ERROR)
     {

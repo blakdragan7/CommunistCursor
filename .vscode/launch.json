@@ -5,7 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch Client",
+            "name": "Launch Mac Server",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/CommunistCursor",
+            "args": ["s"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
+            "name": "Launch Mac Client",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/CommunistCursor",
+            "args": ["c"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
+        },
+        {
+            "name": "Launch Windows Client",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/CommunistCursor.exe",
@@ -16,7 +40,7 @@
             "externalConsole": false
         },
         {
-            "name": "Launch Server",
+            "name": "Launch Windows Server",
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/CommunistCursor.exe",

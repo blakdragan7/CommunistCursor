@@ -11,12 +11,17 @@
 #include <sys/socket.h>
 #endif
 
-SocketException::SocketException(SocketError error) : std::exception()
+SocketException::~SocketException() _NOEXCEPT
+{
+
+}
+
+SocketException::SocketException(SocketError error) _NOEXCEPT : std::exception()
 {
     this->info = SockErrorToString(error);
 }
 
-SocketException::SocketException(SocketError error, int osError) : std::exception()
+SocketException::SocketException(SocketError error, int osError) _NOEXCEPT : std::exception()
 {
     this->info = SockErrorToString(error);
 
@@ -26,7 +31,7 @@ SocketException::SocketException(SocketError error, int osError) : std::exceptio
     }
 }
 
-SocketException::SocketException(const std::string info, SocketError error) : std::exception()
+SocketException::SocketException(const std::string info, SocketError error) _NOEXCEPT : std::exception()
 {
     if(error == SOCKET_E_OS_ERROR)
     {
@@ -38,7 +43,7 @@ SocketException::SocketException(const std::string info, SocketError error) : st
     }
 }
 
-const char* SocketException::what () const throw ()
+const char* SocketException::what () const _NOEXCEPT
 {
     return info.c_str();
 }

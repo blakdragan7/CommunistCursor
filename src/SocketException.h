@@ -12,10 +12,12 @@ private:
     std::string info;
     
 public:
-    SocketException(SocketError error);
-    SocketException(SocketError error, int osError);
-    SocketException(const std::string info, SocketError error = SOCKET_E_OS_ERROR);
-    const char * what () const throw ();
+    SocketException(SocketError error) _NOEXCEPT;
+    SocketException(SocketError error, int osError) _NOEXCEPT; 
+    SocketException(const std::string info, SocketError error = SOCKET_E_OS_ERROR) _NOEXCEPT;
+    const char * what () const _NOEXCEPT override;
+
+    virtual ~SocketException() _NOEXCEPT;
 };
 
 #endif

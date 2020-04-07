@@ -2,12 +2,35 @@
 
 #ifdef _WIN32
 #include <winsock.h>
-#endif
-#ifdef __linux__
+#else
 #include <sys/socket.h>
+#include <errno.h>
 #endif
-#ifdef __unix__
-#include <sys/socket.h>
+
+#ifndef WSAEADDRINUSE
+#define WSAEADDRINUSE EADDRINUSE
+#endif
+
+#ifndef WSAENETDOWN
+#define WSAENETDOWN ENETDOWN
+#endif
+#ifndef WSAENETUNREACH
+#define WSAENETUNREACH ENETUNREACH
+#endif
+#ifndef WSAECONNABORTED
+#define WSAECONNABORTED ECONNABORTED
+#endif
+#ifndef WSAECONNRESET
+#define WSAECONNRESET ECONNRESET
+#endif
+#ifndef WSAECONNREFUSED
+#define WSAECONNREFUSED ECONNREFUSED
+#endif
+#ifndef WSAENOTCONN
+#define WSAENOTCONN ENOTCONN
+#endif
+#ifndef WSAESHUTDOWN
+#define WSAESHUTDOWN ESHUTDOWN
 #endif
 
 int OSGetLastError()
@@ -78,8 +101,10 @@ SocketError OSErrorToSocketError(int os_err)
     case WSAENOTCONN:
         return SOCKET_E_NOT_CONNECTED;
     case WSAESHUTDOWN:
+#ifdef _WIN32
     case WSANOTINITIALISED:
-        return SOCKET_E_NOT_INITIALIZED;
+#endif
+    return SOCKET_E_NOT_INITIALIZED;
     default:
         return SOCKET_E_OS_ERROR;
     }

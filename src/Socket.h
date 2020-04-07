@@ -7,7 +7,11 @@
 
 #include "SocketError.h"
 
+#ifdef _WIN32
 typedef void* NativeSocketHandle;
+#else
+typedef int NativeSocketHandle; 
+#endif
 
 enum SocketProtocol
 {
