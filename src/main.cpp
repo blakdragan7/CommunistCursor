@@ -1,8 +1,29 @@
 #include <iostream>
 #include "Socket.h"
 #include "SocketException.h"
+#include "OSInterface.h"
+
+void Callback(MouseEvent event, void* info);
+
+int MouseTest(int argc, char* argv[]);
+int SocketTest(int argc, char* argv[]);
 
 int main(int argc, char* argv[])
+{
+    return MouseTest(argc,argv);
+}
+
+int MouseTest(int argc, char* argv[])
+{
+    void* someData = (void*)10;
+    OSIRegisterForMouseEvents(Callback,someData);
+
+    std::cin.get();
+
+    return 0;
+}
+
+int SocketTest(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
 
@@ -90,4 +111,9 @@ int main(int argc, char* argv[])
     Socket::OSSocketTeardown();
 
     return 0;
+}
+
+void Callback(MouseEvent event, void* info)
+{
+    std::cout << "New Event {" << event.posX << "," << event.posY << "} " << event.extendButtonInfo  << std::endl;
 }
