@@ -2,16 +2,26 @@
 #define MOUSE_INTERFACE_H
 
 #include <functional>
+#include <mutex>
+#include <map>
 
 #include "OSInterfaceError.h"
 
+enum OSEventType
+{
+    OS_EVENT_MOUSE,
+    OS_EVENT_KEY,
+    OS_EVENT_HID,
+    OS_EVENT_INVALID = -1
+};
+
 enum MouseEventType
 {
-    MOUSE_ET_MOVE,
-    MOUSE_ET_DOWN,
-    MOUSE_ET_UP,
-    MOUSE_ET_SCROLL,
-    MOUSE_ET_INVALID
+    MOUSE_EVENT_MOVE,
+    MOUSE_EVENT_DOWN,
+    MOUSE_EVENT_UP,
+    MOUSE_EVENT_SCROLL,
+    MOUSE_EVENT_INVALID = -1
 };
 
 enum MouseButton
@@ -20,24 +30,58 @@ enum MouseButton
     MOUSE_BUTTON_RIGHT,
     MOUSE_BUTTON_MIDDLE,
     MOUSE_BUTTON_EXTENDED,
-    MOUSE_BUTTON_INVALID
+    MOUSE_BUTTON_INVALID = -1
 };
 
-struct MouseEvent
+enum KeyEventType
 {
-    MouseEventType eventType;
+    KEY_EVENT_DOWN,
+    KEY_EVENT_UP,
+    KEY_EVENT_INVALID = -1
+};
+
+struct OSEvent
+{
+    OSEventType eventType;
+    union SubEventType
+    {
+        MouseEventType mouseEvent;
+        KeyEventType keyEvent;
+    } subEvent;
+    
     MouseButton eventButton;
     int extendButtonInfo;
     int posX,posY;
 
-    MouseEvent::MouseEvent() : eventType(MOUSE_ET_INVALID), eventButton(MOUSE_BUTTON_INVALID), extendButtonInfo(0), \
-                                posX(0), posY(0) {}
+    OSEvent::OSEvent() : eventType(OS_EVENT_INVALID), eventButton(MOUSE_BUTTON_INVALID), extendButtonInfo(0), \
+                                posX(0), posY(0) {subEvent.keyEvent = KEY_EVENT_INVALID;}
 };
 
-typedef std::function<void(MouseEvent, void* userInfo)> MouseEventCallback;
+typedef std::function<void(OSEvent, void* userInfo)> OSEventCallback;
+typedef std::pair<void*, OSEventCallback> OSEventEntry;
 
-extern OSInterfaceError OSISetMousePosition(int x, int y);
-extern OSInterfaceError OSIGetMousePosition(int *x, int *y);
-extern OSInterfaceError OSIRegisterForMouseEvents(MouseEventCallback callback, void* userInfo);
-extern OSInterfaceError OSIUnRegisterForMouseEvents(void* userInfo);
+class OSInterface
+{
+private:
+    bool shouldRunMainloop;
+    bool hasHookedEvents;
+    std::map<void*, OSEventCallback> OSEventRegisterdCallbacks;
+    std::mutex MapAccessMutex;
+
+    OSInterface() :shouldRunMainloop(true), hasHookedEvents(false){}
+
+    static OSInterface sharedInterface;
+public:
+    
+    static OSInterface& SharedInterface();
+
+    OSInterfaceError SetMousePosition(int x, int y);
+    OSInterfaceError GetMousePosition(int *x, int *y);
+    OSInterfaceError RegisterForOSEvents(OSEventCallback callback, void* userInfo);
+    OSInterfaceError UnRegisterForOSEvents(void* userInfo);
+    
+    void OSMainLoop();
+    void UpdateThread(OSEvent event);
+};
+
 #endif

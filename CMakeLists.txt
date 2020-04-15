@@ -7,11 +7,21 @@ include(CTest)
 enable_testing()
 
 file(GLOB CommunistCurosr_SOURCE "src/*.cpp")
-
-add_executable(CommunistCursor ${CommunistCurosr_SOURCE})
+file(GLOB CommunistCurosr_Windows_SOURCE "src/Windows/*.cpp")
+file(GLOB CommunistCurosr_Linux_SOURCE "src/Linux/*.cpp")
+file(GLOB CommunistCurosr_Apple_SOURCE "src/Apple/*.cpp")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+        add_executable(CommunistCursor ${CommunistCurosr_SOURCE} ${CommunistCurosr_Windows_SOURCE} )
         target_link_libraries(CommunistCursor ws2_32.lib)
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+        add_executable(CommunistCursor ${CommunistCurosr_SOURCE} ${CommunistCurosr_Linux_SOURCE} )
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Apple")
+        add_executable(CommunistCursor ${CommunistCurosr_SOURCE} ${CommunistCurosr_Apple_SOURCE} )
 endif()
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})

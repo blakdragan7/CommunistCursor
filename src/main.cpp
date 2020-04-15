@@ -3,7 +3,7 @@
 #include "SocketException.h"
 #include "OSInterface.h"
 
-void Callback(MouseEvent event, void* info);
+void Callback(OSEvent event, void* info);
 
 int MouseTest(int argc, char* argv[]);
 int SocketTest(int argc, char* argv[]);
@@ -15,10 +15,12 @@ int main(int argc, char* argv[])
 
 int MouseTest(int argc, char* argv[])
 {
-    void* someData = (void*)10;
-    OSIRegisterForMouseEvents(Callback,someData);
+    OSInterface& osi = OSInterface::SharedInterface();
 
-    std::cin.get();
+    void* someData = (void*)10;
+    osi.RegisterForOSEvents(Callback, someData);
+    osi.OSMainLoop();
+    osi.UnRegisterForOSEvents(someData);
 
     return 0;
 }
@@ -113,7 +115,7 @@ int SocketTest(int argc, char* argv[])
     return 0;
 }
 
-void Callback(MouseEvent event, void* info)
+void Callback(OSEvent event, void* info)
 {
     std::cout << "New Event {" << event.posX << "," << event.posY << "} " << event.extendButtonInfo  << std::endl;
 }
