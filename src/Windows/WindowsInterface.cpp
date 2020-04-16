@@ -9,11 +9,52 @@ HHOOK mouseHook=0, keyboardHook=0;
 
 LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM lParam)
 {
-	OSEvent event;
-    event.eventType = OS_EVENT_MOUSE;
+    if (nCode == HC_ACTION)
+	{
+        OSEvent event;
+        event.eventType = OS_EVENT_MOUSE;
 
-    osi->UpdateThread(event);
-    
+        MSLLHOOKSTRUCT* msHook = (MSLLHOOKSTRUCT*)lParam;
+
+        event.posX = msHook->pt.x;
+        event.posY = msHook->pt.y;
+
+        switch (wParam) {
+		case WM_LBUTTONDOWN:
+			event.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
+            event.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
+            break;
+		case WM_LBUTTONUP:
+            event.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
+            event.subEvent.mouseEvent = MOUSE_EVENT_UP;
+			break;
+		case WM_MOUSEMOVE:
+            event.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
+			break;
+		case WM_RBUTTONDOWN:
+            event.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
+            event.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
+			break;
+		case WM_RBUTTONUP:
+            event.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
+            event.subEvent.mouseEvent = MOUSE_EVENT_UP;
+			break;
+        case WM_MOUSEWHEEL:
+            event.subEvent.mouseEvent = MOUSE_EVENT_SCROLL;
+            event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+            event.extendButtonInfo = GET_WHEEL_DELTA_WPARAM(msHook->mouseData) / WHEEL_DELTA;
+            break;
+        case WM_MBUTTONDOWN:
+            event.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
+            event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+            break;
+        case WM_MBUTTONUP:
+            event.subEvent.mouseEvent = MOUSE_EVENT_UP;
+            event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+            break;
+        }
+        osi->UpdateThread(event);
+    }
     return CallNextHookEx(0, nCode, wParam, lParam);
 }
 

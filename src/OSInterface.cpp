@@ -91,3 +91,11 @@ void OSInterface::UpdateThread(OSEvent event)
 
     MapAccessMutex.unlock();
 }
+
+std::ostream& operator<<(std::ostream& os, const OSEvent& event)
+{
+    return os << "{" << "type:" << event.eventType << " subType:" \
+    << event.subEvent.raw << " MouseButton:" << event.eventButton.key\
+    << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
+    event.posX << "," << event.posY << "}"; 
+}

@@ -117,5 +117,5 @@ int SocketTest(int argc, char* argv[])
 
 void Callback(OSEvent event, void* info)
 {
-    std::cout << "New Event {" << event.posX << "," << event.posY << "} " << event.extendButtonInfo  << std::endl;
+    std::cout << event << std::endl;
 }

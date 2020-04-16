@@ -43,19 +43,27 @@ enum KeyEventType
 struct OSEvent
 {
     OSEventType eventType;
-    union SubEventType
+    union
     {
         MouseEventType mouseEvent;
         KeyEventType keyEvent;
+        int raw;
     } subEvent;
     
-    MouseButton eventButton;
+    union
+    {
+        MouseButton mouseButton;
+        int key;
+    }eventButton;
+
     int extendButtonInfo;
     int posX,posY;
 
-    OSEvent::OSEvent() : eventType(OS_EVENT_INVALID), eventButton(MOUSE_BUTTON_INVALID), extendButtonInfo(0), \
-                                posX(0), posY(0) {subEvent.keyEvent = KEY_EVENT_INVALID;}
+    OSEvent::OSEvent() : eventType(OS_EVENT_INVALID), extendButtonInfo(0), \
+                                posX(0), posY(0) {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.key = -1;}
 };
+
+extern std::ostream& operator<<(std::ostream& os, const OSEvent& event);
 
 typedef std::function<void(OSEvent, void* userInfo)> OSEventCallback;
 typedef std::pair<void*, OSEventCallback> OSEventEntry;
