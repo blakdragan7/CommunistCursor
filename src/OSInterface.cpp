@@ -94,8 +94,23 @@ void OSInterface::UpdateThread(OSEvent event)
 
 std::ostream& operator<<(std::ostream& os, const OSEvent& event)
 {
-    return os << "{" << "type:" << event.eventType << " subType:" \
-    << event.subEvent.raw << " MouseButton:" << event.eventButton.scanCode\
-    << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
-    event.posX << "," << event.posY << "}"; 
+    switch(event.eventType)
+    {
+    case OS_EVENT_MOUSE:
+        return os << "{" << "type:" << "Mouse Event" << " subType:" \
+        << event.subEvent.raw << " mouseButton:" << event.eventButton.mouseButton\
+        << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
+        event.posX << "," << event.posY << "}"; 
+    case OS_EVENT_KEY:
+        return os << "{" << "type:" << "Key Event" << " subType:" \
+        << event.subEvent.raw << " scaneCode:" << event.eventButton.scanCode; 
+    case OS_EVENT_HID:
+        return os << "{" << "type:" << "HID Event" << " subType:" \
+        << event.subEvent.raw << " button:" << event.eventButton.mouseButton\
+        << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
+        event.posX << "," << event.posY << "}"; 
+    case OS_EVENT_INVALID:
+    default:
+        return os << "Invalid Event";
+    }
 }
