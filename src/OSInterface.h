@@ -58,9 +58,12 @@ struct OSEvent
 
     int extendButtonInfo;
     int posX,posY;
+    int maxX, maxY;
+    int minX, minY;
 
     OSEvent::OSEvent() : eventType(OS_EVENT_INVALID), extendButtonInfo(0), \
-                                posX(0), posY(0) {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.scanCode = -1;}
+                                posX(0), posY(0), maxX(0), maxY(0), minX(0), minY(0)
+    {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.scanCode = -1;}
 };
 
 extern std::ostream& operator<<(std::ostream& os, const OSEvent& event);
@@ -76,15 +79,16 @@ private:
     std::map<void*, OSEventCallback> OSEventRegisterdCallbacks;
     std::mutex MapAccessMutex;
 
-    OSInterface() :shouldRunMainloop(true), hasHookedEvents(false){}
+    OSInterface();
 
     static OSInterface sharedInterface;
 public:
     
     static OSInterface& SharedInterface();
 
-    OSInterfaceError SetMousePosition(int x, int y);
-    OSInterfaceError GetMousePosition(int *x, int *y);
+    OSInterfaceError ConvertEventToNativeCoords(const OSEvent inEvent, OSEvent& outEvent);
+    OSInterfaceError SendMouseEvent(const OSEvent mouseEvent);
+    OSInterfaceError SendKeyEvent(const OSEvent keyEvent);
     OSInterfaceError RegisterForOSEvents(OSEventCallback callback, void* userInfo);
     OSInterfaceError UnRegisterForOSEvents(void* userInfo);
     

@@ -1,11 +1,7 @@
-#include "OSInterface.h"
+#include "NativeInterface.h"
 #include <iostream>
 
 #define SLEEPM(a) std::this_thread::sleep_for(std::chrono::milliseconds(a));
-
-extern int NativeRegisterForOSEvents(OSInterface* osi);
-extern void OSMainLoop(bool& stopSwitch);
-extern void NativeUnhookAllEvents();
 
 OSInterface OSInterface::sharedInterface;
 
@@ -14,14 +10,48 @@ OSInterface& OSInterface::SharedInterface()
     return sharedInterface;
 }
 
-OSInterfaceError OSInterface::SetMousePosition(int x, int y)
+OSInterface::OSInterface() :shouldRunMainloop(true), hasHookedEvents(false)
 {
+    static bool onceToken = true;
+    if(onceToken)
+    {
+        onceToken = false;
+        StoreScreenSize();
+    }
+}
+
+OSInterfaceError OSInterface::ConvertEventToNativeCoords(const OSEvent inEvent, OSEvent& outEvent)
+{
+    int OSError = ::ConvertEventCoordsToNative(inEvent, outEvent);
+    if(OSError != 0)
+        return OSErrorToOSInterfaceError(OSError);
     return OS_E_SUCCESS;
 }
 
-OSInterfaceError OSInterface::GetMousePosition(int *x, int *y)
+OSInterfaceError OSInterface::SendMouseEvent(OSEvent mouseEvent)
 {
-    return OS_E_SUCCESS;
+    if(mouseEvent.eventType != OS_EVENT_MOUSE)
+        return OS_E_INVALID_PARAM;
+
+    int OSError = ::SendMouseEvent(mouseEvent);
+
+    if(OSError == 0)
+        return OS_E_SUCCESS;
+    else
+        return OSErrorToOSInterfaceError(OSError);
+}
+
+OSInterfaceError OSInterface::SendKeyEvent(OSEvent keyEvent)
+{
+    if(keyEvent.eventType != OS_EVENT_KEY)
+        return OS_E_INVALID_PARAM;
+
+    int OSError = ::SendKeyEvent(keyEvent);
+
+    if(OSError == 0)
+        return OS_E_SUCCESS;
+    else
+        return OSErrorToOSInterfaceError(OSError);
 }
 
 OSInterfaceError OSInterface::RegisterForOSEvents(OSEventCallback callback, void* userInfo)
@@ -32,7 +62,7 @@ OSInterfaceError OSInterface::RegisterForOSEvents(OSEventCallback callback, void
         if(res != 0)
         {
             std::cout << "Error hooking events with " << res << std::endl;
-            return OS_E_NOT_REGISTERED;
+            return OSErrorToOSInterfaceError(res);
         }
             
         hasHookedEvents = true;
