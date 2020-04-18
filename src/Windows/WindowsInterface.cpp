@@ -63,6 +63,9 @@ LRESULT CALLBACK LowLevelKeyboardProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPA
 	OSEvent event;
     event.eventType = OS_EVENT_KEY;
 
+    KBDLLHOOKSTRUCT* msHook = (KBDLLHOOKSTRUCT*)lParam;
+    event.eventButton.scanCode = msHook->scanCode;
+
     osi->UpdateThread(event);
     
     return CallNextHookEx(0, nCode, wParam, lParam);

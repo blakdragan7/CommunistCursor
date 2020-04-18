@@ -53,14 +53,14 @@ struct OSEvent
     union
     {
         MouseButton mouseButton;
-        int key;
+        int scanCode;
     }eventButton;
 
     int extendButtonInfo;
     int posX,posY;
 
     OSEvent::OSEvent() : eventType(OS_EVENT_INVALID), extendButtonInfo(0), \
-                                posX(0), posY(0) {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.key = -1;}
+                                posX(0), posY(0) {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.scanCode = -1;}
 };
 
 extern std::ostream& operator<<(std::ostream& os, const OSEvent& event);

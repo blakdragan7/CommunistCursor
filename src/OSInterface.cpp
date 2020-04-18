@@ -95,7 +95,7 @@ void OSInterface::UpdateThread(OSEvent event)
 std::ostream& operator<<(std::ostream& os, const OSEvent& event)
 {
     return os << "{" << "type:" << event.eventType << " subType:" \
-    << event.subEvent.raw << " MouseButton:" << event.eventButton.key\
+    << event.subEvent.raw << " MouseButton:" << event.eventButton.scanCode\
     << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
     event.posX << "," << event.posY << "}"; 
 }
