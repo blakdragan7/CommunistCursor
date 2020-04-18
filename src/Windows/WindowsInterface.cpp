@@ -60,13 +60,28 @@ LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM
 
 LRESULT CALLBACK LowLevelKeyboardProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM lParam)
 {
-	OSEvent event;
-    event.eventType = OS_EVENT_KEY;
+    if (nCode == HC_ACTION)
+	{
+        OSEvent event;
+        event.eventType = OS_EVENT_KEY;
 
-    KBDLLHOOKSTRUCT* msHook = (KBDLLHOOKSTRUCT*)lParam;
-    event.eventButton.scanCode = msHook->scanCode;
+        KBDLLHOOKSTRUCT* msHook = (KBDLLHOOKSTRUCT*)lParam;
+        event.eventButton.scanCode = msHook->scanCode;
 
-    osi->UpdateThread(event);
+        switch(wParam)
+        {
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+            event.subEvent.keyEvent = KEY_EVENT_DOWN;
+            break;
+            case WM_KEYUP:
+            case WM_SYSKEYUP:
+            event.subEvent.keyEvent = KEY_EVENT_UP;
+            break;
+        }
+
+        osi->UpdateThread(event);
+    }
     
     return CallNextHookEx(0, nCode, wParam, lParam);
 }
