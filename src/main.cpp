@@ -5,15 +5,69 @@
 
 void Callback(OSEvent event, void* info);
 
-int MouseTest(int argc, char* argv[]);
+int EventTest(int argc, char* argv[]);
 int SocketTest(int argc, char* argv[]);
+int KeyTest(int argc, char* argv[]);
+int MouseMoveTest(int argc, char* argv[]);
 
 int main(int argc, char* argv[])
 {
-    return MouseTest(argc,argv);
+    return MouseMoveTest(argc,argv);
 }
 
-int MouseTest(int argc, char* argv[])
+int MouseMoveTest(int argc, char* argv[])
+{
+    OSInterface& osi = OSInterface::SharedInterface();
+    OSEvent event;
+
+    event.eventType = OS_EVENT_MOUSE;
+    event.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
+
+    event.posX = 65535 / 2;
+    event.posY = 65535 / 2;
+
+    auto error = osi.SendMouseEvent(event);
+    if(error != OS_E_SUCCESS)
+    {
+        std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
+        return 0;
+    }
+
+    return 0;
+}
+
+int KeyTest(int argc, char* argv[])
+{
+    OSInterface& osi = OSInterface::SharedInterface();
+    
+    OSEvent event;
+    event.eventType = OS_EVENT_KEY;
+    event.subEvent.keyEvent = KEY_EVENT_DOWN;
+
+    event.eventButton.scanCode = 20;
+
+    //std::cin.get();
+
+    auto error = osi.SendKeyEvent(event);
+    if(error != OS_E_SUCCESS)
+    {
+        std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
+        return 0;
+    }
+
+   // std::cin.get();
+
+    event.subEvent.keyEvent = KEY_EVENT_UP;
+    error = osi.SendKeyEvent(event);
+    if(error != OS_E_SUCCESS)
+    {
+        std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
+    }
+
+    return 0;
+}
+
+int EventTest(int argc, char* argv[])
 {
     OSInterface& osi = OSInterface::SharedInterface();
 
