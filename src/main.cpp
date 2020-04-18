@@ -1,7 +1,7 @@
 #include <iostream>
-#include "Socket.h"
-#include "SocketException.h"
-#include "OSInterface.h"
+#include "Socket/Socket.h"
+#include "Socket/SocketException.h"
+#include "OSInterface/OSInterface.h"
 
 void Callback(OSEvent event, void* info);
 

@@ -6,7 +6,7 @@ project(CommunistCursor VERSION 0.1.0)
 include(CTest)
 enable_testing()
 
-file(GLOB CommunistCurosr_SOURCE "src/*.cpp")
+file(GLOB CommunistCurosr_SOURCE "src/*.cpp" "src/OSInterface/*.cpp" "src/Socket/*.cpp")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         file(GLOB CommunistCurosr_Windows_SOURCE "src/Windows/*.cpp")

@@ -1,5 +1,5 @@
 #ifdef _WIN32
-#include "../OSInterface.h"
+#include "../OSInterface/OSInterface.h"
 
 #include <windows.h>
 #include <functional>
