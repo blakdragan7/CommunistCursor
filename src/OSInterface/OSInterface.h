@@ -1,4 +1,4 @@
-#ifndef MOUSEINTERFACE_H
+#ifndef MOUSE_INTERFACE_H
 #define MOUSE_INTERFACE_H
 
 #include <functional>
@@ -61,7 +61,7 @@ struct OSEvent
     int maxX, maxY;
     int minX, minY;
 
-    OSEvent::OSEvent() : eventType(OS_EVENT_INVALID), extendButtonInfo(0), \
+    OSEvent() : eventType(OS_EVENT_INVALID), extendButtonInfo(0), \
                                 posX(0), posY(0), maxX(0), maxY(0), minX(0), minY(0)
     {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.scanCode = -1;}
 };
