@@ -23,7 +23,16 @@ endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         file(GLOB CommunistCurosr_Apple_SOURCE "src/MacOS/*.cpp")
-        add_executable(CommunistCursor ${CommunistCurosr_SOURCE} ${CommunistCurosr_Apple_SOURCE} )
+        file(GLOB CommunistCurosr_Apple_SOURCE_MM "src/MacOS/*.mm")
+        set_source_files_properties(${CommunistCurosr_Apple_SOURCE_MM} PROPERTIES
+                            COMPILE_FLAGS "-x objective-c++")
+        add_executable(CommunistCursor ${CommunistCurosr_SOURCE} ${CommunistCurosr_Apple_SOURCE} ${CommunistCurosr_Apple_SOURCE_MM} )
+        set_target_properties(CommunistCursor PROPERTIES MACOSX_BUNDLE TRUE MACOSX_BUNDLE_INFO_PLIST "Info.plist")
+        
+        find_library(IOKIT IOKit)
+        find_library(FOUNDATION Foundation)
+        
+        target_link_libraries(CommunistCursor ${IOKIT} ${FOUNDATION})
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Unix")
