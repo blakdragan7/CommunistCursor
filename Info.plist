@@ -1,14 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!--
-   Info.plist
-   CommunistCursor
-
-   Created by Padzilla on 4/18/20.
-   Copyright (c) 2020 ___ORGANIZATIONNAME___. All rights reserved.
--->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-    <dict>
-    
-    </dict>
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.blakdragan7.communistcursor</string>
+    <key>CFBundleName</key>
+    <string>CommunistCursor</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string></string>
+</dict>
 </plist>
