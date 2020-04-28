@@ -129,12 +129,12 @@ std::ostream& operator<<(std::ostream& os, const OSEvent& event)
     {
     case OS_EVENT_MOUSE:
         return os << "{" << "type:" << "Mouse Event" << " subType:" \
-        << event.subEvent.raw << " mouseButton:" << event.eventButton.mouseButton\
+        << MouseEventTypeToString(event.subEvent.mouseEvent) << " mouseButton:" << MouseButtonToString(event.eventButton.mouseButton)\
         << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
         event.posX << "," << event.posY << "}"; 
     case OS_EVENT_KEY:
         return os << "{" << "type:" << "Key Event" << " subType:" \
-        << event.subEvent.raw << " scaneCode:" << event.eventButton.scanCode; 
+        << KeyEventTypeToString(event.subEvent.keyEvent) << " scaneCode:" << event.eventButton.scanCode; 
     case OS_EVENT_HID:
         return os << "{" << "type:" << "HID Event" << " subType:" \
         << event.subEvent.raw << " button:" << event.eventButton.mouseButton\
@@ -151,12 +151,17 @@ std::string OSEventTypeToString(OSEventType type)
     switch(type)
     {
     case OS_EVENT_MOUSE:
+        return "OS_EVENT_MOUSE";
         break;
     case OS_EVENT_KEY:
+        return "OS_EVENT_KEY";
         break;
     case OS_EVENT_HID:
+        return "OS_EVENT_HID";
         break;
     case OS_EVENT_INVALID:
+    default:
+        return "OS_EVENT_INVALID";
         break;
     }
 }
@@ -166,14 +171,20 @@ std::string MouseEventTypeToString(MouseEventType type)
     switch(type)
     {
     case MOUSE_EVENT_MOVE:
+        return "MOUSE_EVENT_MOVE";
         break;
     case MOUSE_EVENT_DOWN:
+        return "MOUSE_EVENT_DOWN";
         break;
     case MOUSE_EVENT_UP:
+        return "MOUSE_EVENT_UP";
         break;
     case MOUSE_EVENT_SCROLL:
+        return "MOUSE_EVENT_MOVE";
         break;
     case MOUSE_EVENT_INVALID:
+    default:
+        return "MOUSE_EVENT_INVALID";
         break;
     }
 }
@@ -183,10 +194,14 @@ std::string KeyEventTypeToString(KeyEventType type)
     switch(type)
     {
     case KEY_EVENT_DOWN:
+        return "KEY_EVENT_DOWN";
         break;
     case KEY_EVENT_UP:
+        return "KEY_EVENT_UP";
         break;
     case KEY_EVENT_INVALID:
+    default:
+        return "KEY_EVENT_INVALID";
         break;
     }
 }
@@ -196,14 +211,20 @@ std::string MouseButtonToString(MouseButton button)
     switch(button)
     {
     case MOUSE_BUTTON_LEFT:
+        return "MOUSE_BUTTON_LEFT";
         break;
     case MOUSE_BUTTON_RIGHT:
+        return "MOUSE_BUTTON_RIGHT";
         break;
     case MOUSE_BUTTON_MIDDLE:
+        return "MOUSE_BUTTON_MIDDLE";
         break;
     case MOUSE_BUTTON_EXTENDED:
+        return "MOUSE_BUTTON_EXTENDED";
         break;
     case MOUSE_BUTTON_INVALID:
+    default:
+        return "MOUSE_BUTTON_INVALID";
         break;
     }
 }
