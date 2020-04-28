@@ -96,4 +96,9 @@ public:
     void UpdateThread(OSEvent event);
 };
 
+extern std::string OSEventTypeToString(OSEventType);
+extern std::string MouseEventTypeToString(MouseEventType);
+extern std::string KeyEventTypeToString(KeyEventType);
+extern std::string MouseButtonToString(MouseButton);
+
 #endif

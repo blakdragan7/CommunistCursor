@@ -145,3 +145,65 @@ std::ostream& operator<<(std::ostream& os, const OSEvent& event)
         return os << "Invalid Event";
     }
 }
+
+std::string OSEventTypeToString(OSEventType type)
+{
+    switch(type)
+    {
+    case OS_EVENT_MOUSE:
+        break;
+    case OS_EVENT_KEY:
+        break;
+    case OS_EVENT_HID:
+        break;
+    case OS_EVENT_INVALID:
+        break;
+    }
+}
+            
+std::string MouseEventTypeToString(MouseEventType type)
+{
+    switch(type)
+    {
+    case MOUSE_EVENT_MOVE:
+        break;
+    case MOUSE_EVENT_DOWN:
+        break;
+    case MOUSE_EVENT_UP:
+        break;
+    case MOUSE_EVENT_SCROLL:
+        break;
+    case MOUSE_EVENT_INVALID:
+        break;
+    }
+}
+            
+std::string KeyEventTypeToString(KeyEventType type)
+{
+    switch(type)
+    {
+    case KEY_EVENT_DOWN:
+        break;
+    case KEY_EVENT_UP:
+        break;
+    case KEY_EVENT_INVALID:
+        break;
+    }
+}
+
+std::string MouseButtonToString(MouseButton button)
+{
+    switch(button)
+    {
+    case MOUSE_BUTTON_LEFT:
+        break;
+    case MOUSE_BUTTON_RIGHT:
+        break;
+    case MOUSE_BUTTON_MIDDLE:
+        break;
+    case MOUSE_BUTTON_EXTENDED:
+        break;
+    case MOUSE_BUTTON_INVALID:
+        break;
+    }
+}
