@@ -534,12 +534,16 @@ SocketError Socket::Accept(Socket** acceptedSocket)
 
     Socket* newSocket = new Socket(newSFD);
 
+    char newAddress[256] = {0};
+
+    inet_ntop(clientInfo.sin_family, (const void*)&clientInfo.sin_addr, newAddress, sizeof(newAddress));
+
     newSocket->isConnected = true;
     newSocket->isListening = false;
     newSocket->isBound = false;
     newSocket->protocol = this->protocol;
     newSocket->port = clientInfo.sin_port;
-    newSocket->address = inet_ntoa(clientInfo.sin_addr);
+    newSocket->address = newAddress;
 
     newSocket->_internalSockInfo = 0;
     newSocket->_isBindable = false;
