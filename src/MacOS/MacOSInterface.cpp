@@ -5,99 +5,147 @@
 #include <IOKit/hid/IOHIDValue.h>
 #include <IOKit/hid/IOHIDManager.h>
 
-CGEventRef
-callback(CGEventTapProxy proxy, CGEventType type,
-                  CGEventRef event, void *refcon)
+#include <iostream>
+#include <string>
+
+#define S(a) std::to_string(a)
+
+IOHIDManagerRef hidManager = NULL;
+
+void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOHIDValueRef value )
 {
-    OSEvent osEvent;
-    OSInterface* osi = static_cast<OSInterface*>(refcon);
+    // a non zero result means there was an error we can't do anything about
+    if(result != 0)return;
     
-    switch(type)
+    IOHIDElementRef elem = IOHIDValueGetElement( value );
+    UInt32 usagePage = IOHIDElementGetUsagePage(elem);
+    uint32_t usage = IOHIDElementGetUsage( elem );
+    long integerValue = IOHIDValueGetIntegerValue( value );
+    
+    OSInterface* osi = static_cast<OSInterface*>(context);
+    OSEvent event;
+    
+    switch(usagePage)
     {
-        case kCGEventLeftMouseDown:
-            osEvent.eventType = OS_EVENT_MOUSE;
-            osEvent.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
-            osEvent.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
-            break;
-        case kCGEventLeftMouseUp:
-            osEvent.eventType = OS_EVENT_MOUSE;
-            osEvent.subEvent.mouseEvent = MOUSE_EVENT_UP;
-            osEvent.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
-            break;
-        case kCGEventRightMouseDown:
-            osEvent.eventType = OS_EVENT_MOUSE;
-            osEvent.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
-            osEvent.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
-        break;
-        case kCGEventRightMouseUp:
-            osEvent.eventType = OS_EVENT_MOUSE;
-            osEvent.subEvent.mouseEvent = MOUSE_EVENT_UP;
-            osEvent.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
-        break;
-        case kCGEventMouseMoved:
-            osEvent.eventType = OS_EVENT_MOUSE;
-            osEvent.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
-        break;
-        case kCGEventKeyDown:
-            osEvent.eventType = OS_EVENT_KEY;
-            osEvent.subEvent.keyEvent = KEY_EVENT_DOWN;
-            osEvent.eventButton.scanCode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-            break;
-        case kCGEventKeyUp:
-            osEvent.eventType = OS_EVENT_KEY;
-            osEvent.subEvent.keyEvent = KEY_EVENT_DOWN;
-            osEvent.eventButton.scanCode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-            break;
-        case kCGEventScrollWheel:
-            osEvent.eventType = OS_EVENT_MOUSE;
-            osEvent.subEvent.mouseEvent = MOUSE_EVENT_SCROLL;
-            osEvent.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
-        case kCGEventFlagsChanged:
-            osEvent.eventType = OS_EVENT_KEY;
-            osEvent.subEvent.keyEvent = KEY_EVENT_DOWN;
-            osEvent.eventButton.scanCode = CGEventGetIntegerValueField(event, kCGKeyboardEventKeycode);
-        break;
-        default:
-            return event;
+        case kHIDPage_KeyboardOrKeypad:
+        {
+            uint32_t scancode = IOHIDElementGetUsage( elem );
+            long pressed = IOHIDValueGetIntegerValue( value );
+        
+            if(scancode <= kHIDUsage_KeyboardErrorUndefined || scancode > kHIDUsage_KeyboardRightGUI)
+                return;
+            
+            event.eventButton.scanCode = scancode;
+            
+            event.eventType = OS_EVENT_KEY;
+            event.subEvent.keyEvent = pressed == 1 ? KEY_EVENT_DOWN : KEY_EVENT_UP;
+        }
+        case kHIDPage_Button:
+        {
+            event.eventType = OS_EVENT_MOUSE;
+            switch (usage) {
+                    // left button
+                case kHIDUsage_Button_1:
+                    event.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
+                    break;
+                    // right button
+                case kHIDUsage_Button_2:
+                    event.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
+                    break;
+                    // middle button probably
+                case kHIDUsage_Button_3:
+                    event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+                    break;
+                default:
+                    break;
+            }
+            
+            event.subEvent.mouseEvent = integerValue ? MOUSE_EVENT_DOWN : MOUSE_EVENT_UP;
+        }
+    
+        case kHIDPage_GenericDesktop:
+        {
+            event.eventType = OS_EVENT_MOUSE;
+            switch (usage) {
+                case kHIDUsage_GD_X:
+                    event.posX = integerValue;
+                    break;
+                case kHIDUsage_GD_Y:
+                    event.posY = integerValue;
+                    break;
+                case kHIDUsage_GD_Wheel:
+                    event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+                    event.extendButtonInfo = integerValue;
+                    break;
+                default:
+                    break;
+            }
+        }
     }
     
-    osi->UpdateThread(osEvent);
-    
-    return event;
+    osi->UpdateThread(event);
 }
+
+CFMutableDictionaryRef CreateDeviceMatchingDictionary(UInt32 usagePage, UInt32 usage)
+{
+    CFMutableDictionaryRef dict = CFDictionaryCreateMutable(
+                                                            kCFAllocatorDefault, 0
+                                                        , & kCFTypeDictionaryKeyCallBacks
+                                                        , & kCFTypeDictionaryValueCallBacks );
+    if ( ! dict )
+        return NULL;
+    
+    CFNumberRef pageNumberRef = CFNumberCreate( kCFAllocatorDefault, kCFNumberIntType, &usagePage);
+    
+    if ( ! pageNumberRef ) {
+        CFRelease( dict );
+        return NULL;
+    }
+
+    CFDictionarySetValue( dict, CFSTR(kIOHIDDeviceUsagePageKey), pageNumberRef);
+    CFRelease( pageNumberRef );
+
+    CFNumberRef usageNumberRef = CFNumberCreate( kCFAllocatorDefault, kCFNumberIntType, &usage );
+
+    if ( ! usageNumberRef ) {
+        CFRelease( dict );
+        return NULL;
+    }
+
+    CFDictionarySetValue( dict, CFSTR(kIOHIDDeviceUsageKey), usageNumberRef );
+    CFRelease( usageNumberRef );
+
+    return dict;
+}
+
 
 int NativeRegisterForOSEvents(OSInterface* osi)
 {
+    hidManager = IOHIDManagerCreate( kCFAllocatorDefault, kIOHIDOptionsTypeNone );
+    
+    CFMutableDictionaryRef keyboard = CreateDeviceMatchingDictionary(kHIDPage_GenericDesktop, kHIDUsage_GD_Keyboard);
+    CFMutableDictionaryRef keypad = CreateDeviceMatchingDictionary(kHIDPage_GenericDesktop, kHIDUsage_GD_Keypad);
+    CFMutableDictionaryRef mouse = CreateDeviceMatchingDictionary(kHIDPage_GenericDesktop, kHIDUsage_GD_Mouse);
+    CFMutableDictionaryRef pointer = CreateDeviceMatchingDictionary(kHIDPage_GenericDesktop, kHIDUsage_GD_Pointer);
+    
+    CFMutableDictionaryRef matches_dict[] = {keyboard, keypad, mouse, pointer};
+    
+    CFArrayRef matches = CFArrayCreate(kCFAllocatorDefault, (const void**)matches_dict, 4, NULL);
+    
+    IOHIDManagerSetDeviceMatchingMultiple( hidManager, matches );
 
-    CGEventMask eventMask =
-        CGEventMaskBit(kCGEventLeftMouseDown) |
-        CGEventMaskBit(kCGEventLeftMouseUp) |
-        CGEventMaskBit(kCGEventScrollWheel) |
-        CGEventMaskBit(kCGEventRightMouseDown) |
-        CGEventMaskBit(kCGEventRightMouseUp) |
-        CGEventMaskBit(kCGEventMouseMoved) |
-        CGEventMaskBit(kCGEventKeyDown) |
-        CGEventMaskBit(kCGEventFlagsChanged) |
-        CGEventMaskBit(kCGEventKeyUp);
+    IOHIDManagerRegisterInputValueCallback( hidManager, myHIDKeyboardCallback, (void*)osi );
 
-    CFMachPortRef eventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, eventMask, callback, (void*)osi);
+    IOHIDManagerScheduleWithRunLoop( hidManager, CFRunLoopGetMain(), kCFRunLoopDefaultMode );
 
-    if(!eventTap)
-        return -1;
-
-    // Create a run loop source.
-    CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(
-                        kCFAllocatorDefault, eventTap, 0);
-
-
-    // Add to the current run loop.
-    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource,
-                       kCFRunLoopCommonModes);
-
-
-    // Enable the event tap.
-    CGEventTapEnable(eventTap, true);
-
+    IOReturn ret = IOHIDManagerOpen( hidManager, kIOHIDOptionsTypeNone );
+    
+    CFRelease(matches);
+    CFRelease(pointer);
+    CFRelease(mouse);
+    CFRelease(keypad);
+    CFRelease(keyboard);
+    
     return 0;
 }
 
@@ -109,7 +157,16 @@ void OSMainLoop(bool& stopSwitch)
 
 void NativeUnhookAllEvents()
 {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"
+    IOHIDManagerRegisterInputValueCallback(hidManager, nullptr, nullptr);
+#pragma clang diagnostic pop
     
+    IOHIDManagerUnscheduleFromRunLoop(hidManager, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
+    IOHIDManagerClose(hidManager, kIOHIDOptionsTypeNone);
+    CFRelease(hidManager);
+    
+    hidManager = NULL;
 }
 
 int SendMouseEvent(const OSEvent mouseEvent)
