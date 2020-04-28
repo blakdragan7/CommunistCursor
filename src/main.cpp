@@ -12,11 +12,14 @@ int MouseMoveTest(int argc, char* argv[]);
 
 int main(int argc, char* argv[])
 {
-    return MouseMoveTest(argc,argv);
+    std::cout << "Starting Communist Cursor\n";
+    return EventTest(argc,argv);
 }
 
 int MouseMoveTest(int argc, char* argv[])
 {
+    std::cout << "MouseMoveTest" << std::endl;
+    
     OSInterface& osi = OSInterface::SharedInterface();
     OSEvent event;
 
@@ -38,6 +41,8 @@ int MouseMoveTest(int argc, char* argv[])
 
 int KeyTest(int argc, char* argv[])
 {
+    std::cout << "KeyTest" << std::endl;
+    
     OSInterface& osi = OSInterface::SharedInterface();
     
     OSEvent event;
@@ -69,6 +74,8 @@ int KeyTest(int argc, char* argv[])
 
 int EventTest(int argc, char* argv[])
 {
+    std::cout << "EventTest" << std::endl;
+    
     OSInterface& osi = OSInterface::SharedInterface();
 
     void* someData = (void*)10;
@@ -81,6 +88,8 @@ int EventTest(int argc, char* argv[])
 
 int SocketTest(int argc, char* argv[])
 {
+    std::cout << "SocketTest" << std::endl;
+    
     Socket::OSSocketStartup();
 
     std::string toSend = "Hello !";
