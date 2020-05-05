@@ -239,6 +239,7 @@ extern int SendKeyEvent(const OSEvent keyEvent)
 int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent)
 {
     // no need on windows
+    outEvent = inEvent;
     return 0;
 }
 
