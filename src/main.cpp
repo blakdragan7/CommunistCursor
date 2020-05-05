@@ -2,6 +2,7 @@
 #include "Socket/Socket.h"
 #include "Socket/SocketException.h"
 #include "OSInterface/OSInterface.h"
+#include "OSInterface/NativeInterface.h"
 
 void Callback(OSEvent event, void* info);
 
@@ -13,7 +14,17 @@ int MouseMoveTest(int argc, char* argv[]);
 int main(int argc, char* argv[])
 {
     std::cout << "Starting Communist Cursor\n";
-    return EventTest(argc,argv);
+
+    std::vector<NativeDisplay> displays;
+
+    GetAllDisplays(displays);
+
+    for(NativeDisplay& display : displays)
+    {
+        std::cout << display << std::endl;
+    }
+
+    return 0;
 }
 
 int MouseMoveTest(int argc, char* argv[])
@@ -26,8 +37,8 @@ int MouseMoveTest(int argc, char* argv[])
     event.eventType = OS_EVENT_MOUSE;
     event.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
 
-    event.posX = 65535 / 2;
-    event.posY = 65535 / 2;
+    event.deltaX = 20;
+    event.deltaY = 20;
 
     auto error = osi.SendMouseEvent(event);
     if(error != OS_E_SUCCESS)
