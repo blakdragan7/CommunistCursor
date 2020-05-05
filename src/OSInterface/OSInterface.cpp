@@ -1,4 +1,5 @@
 #include "NativeInterface.h"
+#include "PacketTypes.h"
 #include <iostream>
 #include <thread>
 
@@ -12,14 +13,7 @@ OSInterface& OSInterface::SharedInterface()
 }
 
 OSInterface::OSInterface() :shouldRunMainloop(true), hasHookedEvents(false)
-{
-    static bool onceToken = true;
-    if(onceToken)
-    {
-        onceToken = false;
-        StoreScreenSize();
-    }
-}
+{}
 
 OSInterfaceError OSInterface::ConvertEventToNativeCoords(const OSEvent inEvent, OSEvent& outEvent)
 {
@@ -123,6 +117,12 @@ void OSInterface::UpdateThread(OSEvent event)
     MapAccessMutex.unlock();
 }
 
+std::ostream& operator<<(std::ostream& os, const NativeDisplay& display)
+{
+    return os << "NativeID:"<<display.nativeScreenID << " pos{" << display.posX << "," << display.posY \
+    << "} size{" << display.width << "," << display.height << "}";
+}
+
 std::ostream& operator<<(std::ostream& os, const OSEvent& event)
 {
     switch(event.eventType)
@@ -130,8 +130,8 @@ std::ostream& operator<<(std::ostream& os, const OSEvent& event)
     case OS_EVENT_MOUSE:
         return os << "{" << "type:" << "Mouse Event" << " subType:" \
         << MouseEventTypeToString(event.subEvent.mouseEvent) << " mouseButton:" << MouseButtonToString(event.eventButton.mouseButton)\
-        << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
-        event.posX << "," << event.posY << "}"; 
+        << " extendButtonInfo:" << event.extendButtonInfo << " delta {" << \
+        event.deltaX << "," << event.deltaY << "}, nativeScreenID:" << event.nativeScreenID; 
     case OS_EVENT_KEY:
         return os << "{" << "type:" << "Key Event" << " subType:" \
         << KeyEventTypeToString(event.subEvent.keyEvent) << " scaneCode:" << event.eventButton.scanCode; 
@@ -139,7 +139,7 @@ std::ostream& operator<<(std::ostream& os, const OSEvent& event)
         return os << "{" << "type:" << "HID Event" << " subType:" \
         << event.subEvent.raw << " button:" << event.eventButton.mouseButton\
         << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
-        event.posX << "," << event.posY << "}"; 
+        event.deltaX << "," << event.deltaY << "}"; 
     case OS_EVENT_INVALID:
     default:
         return os << "Invalid Event";

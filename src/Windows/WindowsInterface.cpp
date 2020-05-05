@@ -3,14 +3,12 @@
 
 #include <windows.h>
 #include <functional>
+#include <vector>
 
 OSInterface* osi = 0;
 HHOOK mouseHook=0, keyboardHook=0;
 
-static int VScreenXMin = 0;
-static int VScreenXMax = 0;
-static int VScreenYMin = 0;
-static int VScreenYMax = 0;
+POINT lastMousePoint = {0};
 
 LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM lParam)
 {
@@ -21,13 +19,10 @@ LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM
 
         MSLLHOOKSTRUCT* msHook = (MSLLHOOKSTRUCT*)lParam;
 
-        event.posX = msHook->pt.x;
-        event.posY = msHook->pt.y;
+        event.deltaX = msHook->pt.x - lastMousePoint.x;
+        event.deltaY = msHook->pt.y - lastMousePoint.y;
 
-        event.minX = VScreenXMin;
-        event.minY = VScreenYMin;
-        event.maxX = VScreenXMax;
-        event.maxY = VScreenYMax;
+        lastMousePoint = msHook->pt;
 
         switch (wParam) {
 		case WM_LBUTTONDOWN:
@@ -63,6 +58,7 @@ LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM
             event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
             break;
         }
+
         osi->UpdateThread(event);
     }
     return CallNextHookEx(0, nCode, wParam, lParam);
@@ -106,6 +102,35 @@ void OSMainLoop(bool& stopSwitch)
     }
 }
 
+BOOL Monitorenumproc(HMONITOR Arg1,HDC Arg2,LPRECT Arg3,LPARAM Arg4)
+{
+    std::vector<NativeDisplay>* outDisplays = static_cast<std::vector<NativeDisplay>*>((void*)Arg4);
+
+    NativeDisplay display;
+
+    display.posX = Arg3->left; 
+    display.posY = Arg3->top;
+
+    display.width = Arg3->right - Arg3->left;
+    display.height = Arg3->bottom - Arg3->top; 
+
+    display.nativeScreenID = -1;
+
+    outDisplays->push_back(display);
+
+    return TRUE;
+}
+
+int GetAllDisplays(std::vector<NativeDisplay>& outDisplays)
+{
+    if(EnumDisplayMonitors(GetDC(NULL), NULL, Monitorenumproc, (LPARAM)&outDisplays) == 0)
+    {
+        return GetLastError();
+    }
+
+    return 0;
+}
+
 int NativeRegisterForOSEvents(OSInterface* _osi)
 {
     osi = _osi;
@@ -114,6 +139,13 @@ int NativeRegisterForOSEvents(OSInterface* _osi)
     if (mouseHook == 0)
     {
         return GetLastError();
+    }
+
+    if(GetCursorPos(&lastMousePoint) == FALSE)
+    {
+        DWORD error = GetLastError();
+        UnhookWindowsHookEx(mouseHook);
+        return error;
     }
 
     keyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, 0, 0);
@@ -142,8 +174,8 @@ extern int SendMouseEvent(const OSEvent mouseEvent)
 
     newInput.type = INPUT_MOUSE;
 
-    newInput.mi.dx = mouseEvent.posX;
-    newInput.mi.dy = mouseEvent.posY;
+    newInput.mi.dx = mouseEvent.deltaX;
+    newInput.mi.dy = mouseEvent.deltaY;
 
     switch(mouseEvent.subEvent.mouseEvent)
     {
@@ -172,7 +204,7 @@ extern int SendMouseEvent(const OSEvent mouseEvent)
         break;
     }
 
-    newInput.mi.dwFlags = MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK | eventType;
+    newInput.mi.dwFlags = eventType;
 
     if(SendInput(1, &newInput, sizeof(INPUT)) != 1)
         return GetLastError();
@@ -206,31 +238,7 @@ extern int SendKeyEvent(const OSEvent keyEvent)
 
 int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent)
 {
-    static const int OS_SIZE_X = 65535;
-    static const int OS_SIZE_Y = 65535;
-
-    outEvent = OSEvent(inEvent);
-
-    outEvent.posX = (int)((float)(inEvent.posX - inEvent.minX) / \
-                    (float)(inEvent.maxX - inEvent.minX)) * OS_SIZE_X;
-    outEvent.posY = (int)((float)(inEvent.posY - inEvent.minY) / \
-                    (float)(inEvent.maxY - inEvent.minY)) * OS_SIZE_Y;
-
-    outEvent.minX = 0;
-    outEvent.minY = 0;
-    outEvent.maxX = OS_SIZE_X;
-    outEvent.maxY = OS_SIZE_Y;
-
-    return 0;
-}
-
-int StoreScreenSize()
-{
-    VScreenXMin = GetSystemMetrics(SM_XVIRTUALSCREEN);
-    VScreenYMin = GetSystemMetrics(SM_YVIRTUALSCREEN);
-    VScreenXMax = GetSystemMetrics(SM_CXVIRTUALSCREEN);
-    VScreenYMax = GetSystemMetrics(SM_CYVIRTUALSCREEN);
-
+    // no need on windows
     return 0;
 }
 

@@ -1,6 +1,7 @@
 #ifndef NATIVE_INTERFACE_H
 #define NATIVE_INTERFACE_H
 #include "OSInterface.h"
+#include <vector>
 /*
     Registers OSInterface osi with key and mouse events on the OS using native methods
     this calles UpdateThread of the osi passed with a generate OSEvent from the native events
@@ -29,13 +30,10 @@ extern int SendMouseEvent(const OSEvent mouseEvent);
     this will return 0 if completed succesfully or a native error if it failes 
 */
 extern int SendKeyEvent(const OSEvent keyEvent);
-/*
-    This stores the native virtual screen size for the OS and must be called before any event
-    generated from NativeRegisterForOSEvents will have correct values
-
-    this will always return 0 
+/* 
+    Retreives all active Displays connected to this computer 
 */
-extern int StoreScreenSize();
+extern int GetAllDisplays(std::vector<NativeDisplay>& outDisplays);
 /*
     Converts inEvent posX,posY,minX,minY,maxX and maxY to a native counterpart so that
     SendMouseEvent will send the event to the correct position
