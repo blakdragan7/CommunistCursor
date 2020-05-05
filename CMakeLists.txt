@@ -33,8 +33,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         
         find_library(IOKIT IOKit)
         find_library(FOUNDATION Foundation)
+        find_library(APPLICATION_SERVICES ApplicationServices)
         
-        target_link_libraries(CommunistCursor ${IOKIT} ${FOUNDATION})
+        target_link_libraries(CommunistCursor ${IOKIT} ${FOUNDATION} ${APPLICATION_SERVICES})
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Unix")

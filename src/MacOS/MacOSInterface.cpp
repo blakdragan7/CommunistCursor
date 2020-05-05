@@ -66,12 +66,13 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
         case kHIDPage_GenericDesktop:
         {
             event.eventType = OS_EVENT_MOUSE;
+            event.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
             switch (usage) {
                 case kHIDUsage_GD_X:
-                    event.posX = integerValue;
+                    event.deltaX = integerValue;
                     break;
                 case kHIDUsage_GD_Y:
-                    event.posY = integerValue;
+                    event.deltaY = integerValue;
                     break;
                 case kHIDUsage_GD_Wheel:
                     event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
@@ -140,13 +141,18 @@ int NativeRegisterForOSEvents(OSInterface* osi)
 
     IOReturn ret = IOHIDManagerOpen( hidManager, kIOHIDOptionsTypeNone );
     
+    if(ret != kIOReturnSuccess)
+    {
+        NativeUnhookAllEvents();
+    }
+    
     CFRelease(matches);
     CFRelease(pointer);
     CFRelease(mouse);
     CFRelease(keypad);
     CFRelease(keyboard);
     
-    return 0;
+    return ret;
 }
 
 void OSMainLoop(bool& stopSwitch)
@@ -171,21 +177,118 @@ void NativeUnhookAllEvents()
 
 int SendMouseEvent(const OSEvent mouseEvent)
 {
+    CGEventType eventType;
+    CGMouseButton mouseButton;
+    CGEventRef event;
+    bool isScrollEvent = false;
+    
+    switch (mouseEvent.subEvent.mouseEvent)
+    {
+    case MOUSE_EVENT_MOVE:
+        eventType = kCGEventMouseMoved;
+        break;
+    case MOUSE_EVENT_DOWN:
+            switch (mouseEvent.eventButton.mouseButton)
+            {
+                case MOUSE_BUTTON_LEFT:
+                    eventType = kCGEventLeftMouseDown;
+                    mouseButton = kCGMouseButtonLeft;
+                    break;
+                case MOUSE_BUTTON_RIGHT:
+                    eventType = kCGEventRightMouseDown;
+                    mouseButton = kCGMouseButtonRight;
+                    break;
+                case MOUSE_BUTTON_MIDDLE:
+                    eventType = kCGEventOtherMouseDown;
+                    mouseButton = kCGMouseButtonCenter;
+                default:
+                    break;
+            }
+        
+        break;
+    case MOUSE_EVENT_UP:
+        switch (mouseEvent.eventButton.mouseButton)
+        {
+            case MOUSE_BUTTON_LEFT:
+                eventType = kCGEventLeftMouseUp;
+                mouseButton = kCGMouseButtonLeft;
+                break;
+            case MOUSE_BUTTON_RIGHT:
+                eventType = kCGEventRightMouseUp;
+                mouseButton = kCGMouseButtonRight;
+                break;
+            case MOUSE_BUTTON_MIDDLE:
+                eventType = kCGEventOtherMouseUp;
+                mouseButton = kCGMouseButtonCenter;
+            default:
+                break;
+        }
+        break;
+    case MOUSE_EVENT_SCROLL:
+        isScrollEvent = true;
+        break;
+    case MOUSE_EVENT_INVALID:
+    default:
+        return -1;
+    }
+    
+    if(isScrollEvent)
+        event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo);
+    else
+        event = CGEventCreateMouseEvent(NULL, eventType, CGPointMake(mouseEvent.deltaX, mouseEvent.deltaY), mouseButton);
+    
+    CGEventPost(kCGHIDEventTap, event);
+    
+    CFRelease(event);
+    
     return 0;
+}
+
+int GetAllDisplays(std::vector<NativeDisplay>& outDisplays)
+{
+    CGDirectDisplayID ids[16] = {0};
+    uint32_t numDisplays = 0;
+    
+    CGError error = CGGetActiveDisplayList(16, ids, &numDisplays);
+    
+    if(error != kCGErrorSuccess)
+    {
+        return error;
+    }
+    
+    for(int i=0; i<numDisplays; i++)
+    {
+        NativeDisplay display;
+        display.nativeScreenID = ids[i];
+        
+        CGRect bounds = CGDisplayBounds(display.nativeScreenID);
+        
+        display.posX = bounds.origin.x;
+        display.posY = bounds.origin.y;
+        
+        display.width = bounds.size.width;
+        display.height = bounds.size.height;
+        
+        outDisplays.push_back(display);
+    }
 }
 
 int SendKeyEvent(const OSEvent keyEvent)
 {
-    return 0;
-}
-
-int StoreScreenSize()
-{
+    CGKeyCode code;
+    bool keydown;
+    
+    CGEventRef event = CGEventCreateKeyboardEvent(NULL, code, keydown);
+    CGEventPost(kCGHIDEventTap, event);
+    CFRelease(event);
+    
     return 0;
 }
 
 int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent)
 {
+    outEvent = inEvent;
+    // no need on mac
     return 0;
 }
 
