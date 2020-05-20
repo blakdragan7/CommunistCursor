@@ -10,7 +10,7 @@ enable_testing()
 
 message("CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 
-file(GLOB CommunistCurosr_SOURCE "src/*.cpp" "src/OSInterface/*.cpp" "src/Socket/*.cpp" "src/OSInterface/*.h" "src/Socket/*.h")
+file(GLOB CommunistCurosr_SOURCE "src/*.cpp" "src/OSInterface/*.cpp" "src/Socket/*.cpp" "src/OSInterface/*.h" "src/Socket/*.h" "src/CC/*.cpp" "src/CC/*.h" )
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         file(GLOB CommunistCurosr_Windows_SOURCE "src/Windows/*.cpp")
