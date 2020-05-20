@@ -294,7 +294,7 @@ SocketError Socket::Connect(const std::string& _address, int _port)
     return SOCKET_E_SUCCESS;
 }
 
-SocketError Socket::Send(void* bytes, size_t length)
+SocketError Socket::Send(const void* bytes, size_t length)
 {
     if(bytes == NULL || length == 0)
         return SOCKET_E_INVALID_PARAM;

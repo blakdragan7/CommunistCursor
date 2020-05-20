@@ -70,7 +70,7 @@ public:
     // can be used to change address / port to connect to w/o creating a new socket
     SocketError Connect(const std::string& address, int port = -1);
 
-    SocketError Send(void* bytes, size_t length);
+    SocketError Send(const void* bytes, size_t length);
     SocketError Send(const std::string& toSend);
 
     SocketError Recv(char* buff, size_t buffLength, size_t* receivedLength);
