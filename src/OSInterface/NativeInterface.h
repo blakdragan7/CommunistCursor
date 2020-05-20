@@ -31,7 +31,13 @@ extern int SendMouseEvent(const OSEvent mouseEvent);
 */
 extern int SendKeyEvent(const OSEvent keyEvent);
 /* 
-    Retreives all active Displays connected to this computer 
+    Retreives all active Displays connected to the main virtual monitor of this computer
+ 
+    the contents of outDisplays is filled with the display information
+ 
+    Note. outDisplays is only appended to, so it's previous contents will be left alone.
+ 
+    returns an OS defined error code if fails or 0 if succesful
 */
 extern int GetAllDisplays(std::vector<NativeDisplay>& outDisplays);
 /*
