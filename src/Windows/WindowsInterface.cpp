@@ -92,10 +92,10 @@ LRESULT CALLBACK LowLevelKeyboardProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPA
     return CallNextHookEx(0, nCode, wParam, lParam);
 }
 
-void OSMainLoop(bool& stopSwitch)
+void OSMainLoop(bool& shouldRun)
 {
     MSG msg = { };
-    while (GetMessage(&msg, 0, 0, 0) && stopSwitch == false)
+    while (GetMessage(&msg, 0, 0, 0) && shouldRun)
     {
         TranslateMessage(&msg);
         DispatchMessage(&msg);

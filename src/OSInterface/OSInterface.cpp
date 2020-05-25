@@ -105,6 +105,12 @@ void OSInterface::OSMainLoop()
     ::OSMainLoop(shouldRunMainloop);
 }
 
+void OSInterface::StopMainLoop()
+{
+    // probably wrap this in mutex
+    shouldRunMainloop = false;
+}
+
 void OSInterface::UpdateThread(OSEvent event)
 {
     while(MapAccessMutex.try_lock() == false)SLEEPM(1);

@@ -155,9 +155,9 @@ int NativeRegisterForOSEvents(OSInterface* osi)
     return ret;
 }
 
-void OSMainLoop(bool& stopSwitch)
+void OSMainLoop(bool& shouldRun)
 {
-    while(stopSwitch == true)
+    while(shouldRun)
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 5, true);
 }
 

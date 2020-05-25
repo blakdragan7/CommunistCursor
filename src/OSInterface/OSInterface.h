@@ -33,6 +33,7 @@ public:
     OSInterfaceError UnRegisterForOSEvents(void* userInfo);
     
     void OSMainLoop();
+    void StopMainLoop();
     void UpdateThread(OSEvent event);
 };
 

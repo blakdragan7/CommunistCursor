@@ -13,7 +13,7 @@ extern int NativeRegisterForOSEvents(OSInterface* osi);
 /*
     Runs the main loop based on OS, i.e. Windows runs a Message loop
 */
-extern void OSMainLoop(bool& stopSwitch);
+extern void OSMainLoop(bool& shouldRun);
 /*
     Release all event hooks using native OS calls
 */
