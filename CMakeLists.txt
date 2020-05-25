@@ -10,7 +10,7 @@ enable_testing()
 
 message("CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 
-file(GLOB CommunistCurosr_SOURCE "src/*.cpp" "src/OSInterface/*.cpp" "src/Socket/*.cpp" "src/OSInterface/*.h" "src/Socket/*.h" "src/CC/*.cpp" "src/CC/*.h" )
+file(GLOB CommunistCurosr_SOURCE "src/*.cpp" "src/OSInterface/*.cpp" "src/Socket/*.cpp" "src/OSInterface/*.h" "src/Socket/*.h" "src/CC/*.cpp" "src/CC/*.h" submodules/args/args.hxx)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         file(GLOB CommunistCurosr_Windows_SOURCE "src/Windows/*.cpp")
@@ -26,8 +26,7 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         file(GLOB CommunistCurosr_Apple_SOURCE "src/MacOS/*.cpp")
         file(GLOB CommunistCurosr_Apple_SOURCE_MM "src/MacOS/*.mm")
-        set_source_files_properties(${CommunistCurosr_Apple_SOURCE_MM} PROPERTIES
-                            COMPILE_FLAGS "-x objective-c++")
+        set_source_files_properties(${CommunistCurosr_Apple_SOURCE_MM} PROPERTIES COMPILE_FLAGS "-x objective-c++")
         add_executable(CommunistCursor ${CommunistCurosr_SOURCE} ${CommunistCurosr_Apple_SOURCE} ${CommunistCurosr_Apple_SOURCE_MM} )
         #set_target_properties(CommunistCursor PROPERTIES MACOSX_BUNDLE TRUE MACOSX_BUNDLE_INFO_PLIST "Info.plist")
         
@@ -42,6 +41,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Unix")
         file(GLOB CommunistCurosr_Unix_SOURCE "src/Unix/*.cpp")
         add_executable(CommunistCursor ${CommunistCurosr_SOURCE} ${CommunistCurosr_Unix_SOURCE} )
 endif()
+
+target_include_directories(CommunistCursor PRIVATE "submodules/args")
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
