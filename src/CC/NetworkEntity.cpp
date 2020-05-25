@@ -3,6 +3,7 @@
 #include "../Socket/Socket.h"
 #include "../OSInterface/OSTypes.h"
 #include "../OSInterface/PacketTypes.h"
+#include "CCDisplay.h"
 
 int NetworkEntity::SendKeyEventPacket(const OSEvent& event)const
 {
@@ -95,14 +96,14 @@ int NetworkEntity::SendOSEvent(const OSEvent& event)const
     }
 }
 
-void NetworkEntity::AddDisplay(NativeDisplay* display, Rect bounds)
+void NetworkEntity::AddDisplay(CCDisplay* display)
 {
-    displays.insert(DisplayEntry(display, bounds));
+    displays.push_back(display);
 }
 
-void NetworkEntity::RemoveDisplay(NativeDisplay* display)
+void NetworkEntity::RemoveDisplay(CCDisplay* display)
 {
-    auto iter = displays.find(display);
+    auto iter = std::find(displays.begin(), displays.end(),display);
     if(iter != displays.end())
     {
         displays.erase(iter);
@@ -110,17 +111,12 @@ void NetworkEntity::RemoveDisplay(NativeDisplay* display)
     }
 }
 
-const NativeDisplay* NetworkEntity::PointIsInEntitiesDisplay(const Point& point)const
+const CCDisplay* NetworkEntity::DisplayForPoint(const Point& point)const
 {
-    // this might be able to be improved later but for now this is good enough
-    for(auto& pair : displays)
+    for(auto display : displays)
     {
-        // simple box collision algo
-        if(pair.second.topLeft.x <= point.x && pair.second.topLeft.y <= point.y \
-        && pair.second.bottomRight.x >= point.x && pair.second.bottomRight.y >= point.y)
-        {
-            return pair.first;
-        }
+        if(display->PointIsInBounds(point))
+            return display;
     }
 
     return NULL;

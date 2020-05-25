@@ -4,7 +4,7 @@
 #include "BasicTypes.h"
 
 #include <string>
-#include <map>
+#include <vector>
 
 /*
 
@@ -16,15 +16,13 @@
 */
 class Socket;
 struct OSEvent;
-struct NativeDisplay;
-
-typedef std::pair<NativeDisplay*, Rect> DisplayEntry;
+class CCDisplay;
 
 class NetworkEntity
 {
 private:
     Socket* _internalSocket;
-    std::map<NativeDisplay*, Rect> displays;
+    std::vector<CCDisplay*> displays;
 
 private:
     // Some Helper Functions
@@ -45,14 +43,14 @@ public:
     // This will add the display to the internal displays vector
     // Note, this takes ownership of that display so it must not be deleted outside this
     // class. bounds is a global virtual space bounds of this display
-    void AddDisplay(NativeDisplay* display, Rect bounds);
+    void AddDisplay(CCDisplay* display);
 
     // this will remove and delete the display passed to this function if it is owned by this
     // Entity, if not it does nothing 
-    void RemoveDisplay(NativeDisplay* display);
+    void RemoveDisplay(CCDisplay* display);
 
     // this returns the display that this point coincides or NULL if there are none
-    const NativeDisplay* PointIsInEntitiesDisplay(const Point& point)const;
+    const CCDisplay* DisplayForPoint(const Point& point)const;
 };
 
 #endif
