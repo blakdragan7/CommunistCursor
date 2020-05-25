@@ -1,4 +1,8 @@
 #include <iostream>
+#include <args.hxx>
+
+#include <string>
+
 #include "Socket/Socket.h"
 #include "Socket/SocketException.h"
 #include "OSInterface/OSInterface.h"
@@ -6,28 +10,104 @@
 
 void Callback(OSEvent event, void* info);
 
-int EventTest(int argc, char* argv[]);
-int SocketTest(int argc, char* argv[]);
-int KeyTest(int argc, char* argv[]);
-int MouseMoveTest(int argc, char* argv[]);
+int EventTest();
+int SocketTest(bool isServer);
+int KeyTest();
+int MouseMoveTest();
+int ParaseArguments(int argc, char* argv[]);
+
+bool shouldPause = false;
 
 int main(int argc, char* argv[])
 {
-    std::cout << "Starting Communist Cursor\n";
+    int res = ParaseArguments(argc,argv);
 
-    std::vector<NativeDisplay> displays;
-
-    GetAllDisplays(displays);
-
-    for(NativeDisplay& display : displays)
+    if(res < 0)
     {
-        std::cout << display << std::endl;
+        std::cout << "Starting Communist Cursor\n";
+    }
+
+    if(shouldPause)
+    {
+        std::cout << "waiting for input:";
+        std::string val;
+        std::cin >> val;
     }
 
     return 0;
 }
 
-int MouseMoveTest(int argc, char* argv[])
+int ParaseArguments(int argc, char* argv[])
+{
+    args::ArgumentParser parser("CommunistCursor shares the Mouse and Keyboard input between multiple computers", "");
+    args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
+    args::Group commandGroup(parser, "commands");
+    args::Command testSocket(commandGroup, "test-socket", "perform a simple socket test, if -s is specified it will run as a server");
+    args::Command testEvent(commandGroup, "test-event", "perform event hooking tests, outputs all events found to stdout");
+    args::Command testKey(commandGroup, "test-key", "perform key injection test, will inject scan code 20 into the OS");
+    args::Command testMouseMove(commandGroup, "test-mousemove", "Perform mouse injection tests, will move mouse to random location on screen");
+    args::Command run(commandGroup, "run", "Run in standard mode.");
+    args::Command iservice(commandGroup, "service", "Install as a service");
+    args::Group arguments(parser, "arguments", args::Group::Validators::DontCare, args::Options::Global);
+    args::Flag isServer(arguments, "isServer", "forces program to run in server mode, can me used in {run} and {teset-socket} commands", {'s', "server"});
+    args::Flag shouldPause(arguments, "shouldPause", "Pauses at tend of execution", {'p', "pause"});
+
+    try
+    {
+        parser.ParseCLI(argc,argv);
+
+        ::shouldPause = shouldPause;
+
+        if(testSocket)
+        {
+            return SocketTest(isServer);
+        }
+        else if(testKey)
+        {
+            return KeyTest();
+        }
+        else if(testMouseMove)
+        {
+            return MouseMoveTest();
+        }
+        else if(testEvent)
+        {
+            return EventTest();
+        }
+        else if(iservice)
+        {
+            // install service
+            return 0;
+        }
+        else if(run)
+        {
+            // perform standard operation
+            return -1;
+        }
+    }
+    catch (args::Help)
+    {
+        std::cout << parser;
+        return 0;
+    }
+    catch (args::ParseError e)
+    {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+    catch (args::ValidationError e)
+    {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    }
+
+    return 0;
+    
+}
+
+int MouseMoveTest()
 {
     std::cout << "MouseMoveTest" << std::endl;
     
@@ -50,7 +130,7 @@ int MouseMoveTest(int argc, char* argv[])
     return 0;
 }
 
-int KeyTest(int argc, char* argv[])
+int KeyTest()
 {
     std::cout << "KeyTest" << std::endl;
     
@@ -83,7 +163,7 @@ int KeyTest(int argc, char* argv[])
     return 0;
 }
 
-int EventTest(int argc, char* argv[])
+int EventTest()
 {
     std::cout << "EventTest" << std::endl;
     
@@ -97,7 +177,7 @@ int EventTest(int argc, char* argv[])
     return 0;
 }
 
-int SocketTest(int argc, char* argv[])
+int SocketTest(bool isServer)
 {
     std::cout << "SocketTest" << std::endl;
     
@@ -105,10 +185,7 @@ int SocketTest(int argc, char* argv[])
 
     std::string toSend = "Hello !";
 
-    char type = 'c';
-
-    if(argc > 1)
-        type = argv[1][0];
+    char type = isServer ? 's' : 'c';
 
     Socket socket("0.0.0.0", 6555, false, SOCKET_P_TCP);
 

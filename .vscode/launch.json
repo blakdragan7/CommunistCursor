@@ -3,52 +3,62 @@
     // Hover to view descriptions of existing attributes.
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
-    "configurations": [
+    "configurations": [        
         {
-            "name": "Launch Mac Server",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/CommunistCursor",
-            "args": ["s"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "Launch Mac Client",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/CommunistCursor",
-            "args": ["c"],
-            "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
-            "environment": [],
-            "externalConsole": false,
-            "MIMode": "lldb"
-        },
-        {
-            "name": "Launch Windows Client",
+            "name": "Test Key Injection",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/CommunistCursor.exe",
-            "args": ["c"],
+            "program": "${command:cmake.launchTargetPath}",
+            "args": ["test-key", "-p"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false
+            "externalConsole": true
         },
         {
-            "name": "Launch Windows Server",
+            "name": "Test Socket Client",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/CommunistCursor.exe",
-            "args": ["s"],
+            "program": "${command:cmake.launchTargetPath}",
+            "args": ["test-socket", "-p"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "externalConsole": false
+            "externalConsole": true
+        },
+        {
+            "name": "Test Socket Server",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": ["test-socket", "-s", "-p"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true
+        },
+        {
+            "name": "Test Event Hooking",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": ["test-event", "-p"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true
+        },
+        {
+            "name": "Test Mouse Injection",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${command:cmake.launchTargetPath}",
+            "args": ["test-mousemove", "-p"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": true
         }
+        
     ]
 }
