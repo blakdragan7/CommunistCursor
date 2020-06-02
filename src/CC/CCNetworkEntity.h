@@ -8,7 +8,7 @@
 
 /*
 
-    A NetworkEntity represent a computer connected to this Session. It contains the monitor information
+    A CCNetworkEntity represent a computer connected to this Session. It contains the monitor information
     about this computer as well as a way to communicate with this computer.
 
     If the socket becomes invalid all "Send" functions will fail
@@ -18,7 +18,7 @@ class Socket;
 struct OSEvent;
 class CCDisplay;
 
-class NetworkEntity
+class CCNetworkEntity
 {
 private:
     Socket* _internalSocket;
@@ -31,7 +31,7 @@ private:
     int SendHIDEventPacket(const OSEvent& event)const;
 
 public:
-    NetworkEntity(Socket* socket);
+    CCNetworkEntity(Socket* socket);
 
     // passes buff and size to internal socket. returns a SocketError enum
     int Send(const char* buff, const size_t size)const;
@@ -51,6 +51,11 @@ public:
 
     // this returns the display that this point coincides or NULL if there are none
     const CCDisplay* DisplayForPoint(const Point& point)const;
+
+    inline bool operator==(const Point& p)const
+    {
+        return DisplayForPoint(p) != NULL;
+    }
 };
 
 #endif

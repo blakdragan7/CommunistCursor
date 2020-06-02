@@ -1,11 +1,11 @@
-#include "NetworkEntity.h"
+#include "CCNetworkEntity.h"
 
 #include "../Socket/Socket.h"
 #include "../OSInterface/OSTypes.h"
 #include "../OSInterface/PacketTypes.h"
 #include "CCDisplay.h"
 
-int NetworkEntity::SendKeyEventPacket(const OSEvent& event)const
+int CCNetworkEntity::SendKeyEventPacket(const OSEvent& event)const
 {
     KeyEventPacket packet(event);
     EventPacketHeader header(EVENT_PACKET_K);
@@ -16,7 +16,7 @@ int NetworkEntity::SendKeyEventPacket(const OSEvent& event)const
     return _internalSocket->Send(&packet, sizeof(packet));
 }
 
-int NetworkEntity::SendMouseEventPacket(const OSEvent& event)const
+int CCNetworkEntity::SendMouseEventPacket(const OSEvent& event)const
 {
     switch(event.subEvent.mouseEvent)
     {
@@ -59,26 +59,26 @@ int NetworkEntity::SendMouseEventPacket(const OSEvent& event)const
     }
 }
 
-int NetworkEntity::SendHIDEventPacket(const OSEvent& event)const
+int CCNetworkEntity::SendHIDEventPacket(const OSEvent& event)const
 {
     // not implemented yet
     return SOCKET_E_UNKOWN;
 }
 
-NetworkEntity::NetworkEntity(Socket* socket) : _internalSocket(socket)
+CCNetworkEntity::CCNetworkEntity(Socket* socket) : _internalSocket(socket)
 {}
 
-int NetworkEntity::Send(const char* buff, const size_t size)const
+int CCNetworkEntity::Send(const char* buff, const size_t size)const
 {
     return _internalSocket->Send(buff, size);
 }
 
-int NetworkEntity::Send(const std::string toSend)const
+int CCNetworkEntity::Send(const std::string toSend)const
 {
     return _internalSocket->Send(toSend);
 }
 
-int NetworkEntity::SendOSEvent(const OSEvent& event)const
+int CCNetworkEntity::SendOSEvent(const OSEvent& event)const
 {
     switch(event.eventType)
     {
@@ -96,12 +96,12 @@ int NetworkEntity::SendOSEvent(const OSEvent& event)const
     }
 }
 
-void NetworkEntity::AddDisplay(CCDisplay* display)
+void CCNetworkEntity::AddDisplay(CCDisplay* display)
 {
     displays.push_back(display);
 }
 
-void NetworkEntity::RemoveDisplay(CCDisplay* display)
+void CCNetworkEntity::RemoveDisplay(CCDisplay* display)
 {
     auto iter = std::find(displays.begin(), displays.end(),display);
     if(iter != displays.end())
@@ -111,7 +111,7 @@ void NetworkEntity::RemoveDisplay(CCDisplay* display)
     }
 }
 
-const CCDisplay* NetworkEntity::DisplayForPoint(const Point& point)const
+const CCDisplay* CCNetworkEntity::DisplayForPoint(const Point& point)const
 {
     for(auto display : displays)
     {
