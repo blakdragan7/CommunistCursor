@@ -8,9 +8,11 @@ project(CommunistCursor VERSION 0.1.0)
 include(CTest)
 enable_testing()
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 message("CMAKE_SYSTEM_NAME: ${CMAKE_SYSTEM_NAME}")
 
-file(GLOB CommunistCurosr_SOURCE "src/*.cpp" "src/OSInterface/*.cpp" "src/Socket/*.cpp" "src/OSInterface/*.h" "src/Socket/*.h" "src/CC/*.cpp" "src/CC/*.h" submodules/args/args.hxx)
+file(GLOB CommunistCurosr_SOURCE "src/*.cpp" "src/OSInterface/*.cpp" "src/Socket/*.cpp" "src/OSInterface/*.h" "src/Socket/*.h" "src/CC/*.cpp" "src/CC/*.h" "submodules/args/args.hxx")
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         file(GLOB CommunistCurosr_Windows_SOURCE "src/Windows/*.cpp")
