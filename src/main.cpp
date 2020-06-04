@@ -8,6 +8,8 @@
 #include "OSInterface/OSInterface.h"
 #include "OSInterface/NativeInterface.h"
 
+#include "CC/CCMain.h"
+
 void Callback(OSEvent event, void* info);
 
 int EventTest();
@@ -20,11 +22,31 @@ bool shouldPause = false;
 
 int main(int argc, char* argv[])
 {
+    Socket::OSSocketStartup();
+
     int res = ParaseArguments(argc,argv);
 
     if(res < 0)
     {
         std::cout << "Starting Communist Cursor\n";
+
+        CCMain main;
+
+        if (res == -1)
+        {
+            std::cout << "Starting Server\n";
+            main.StartServerMain();
+        }
+        else if (res == -2)
+        {
+            std::cout << "Starting Client\n";
+            main.StartClientMain();
+        }
+        else
+        {
+            std::cout << "Invalid return or error res: " << res << std::endl;
+            shouldPause = true;
+        }
     }
 
     if(shouldPause)
@@ -33,6 +55,8 @@ int main(int argc, char* argv[])
         std::string val;
         std::cin >> val;
     }
+
+    Socket::OSSocketTeardown();
 
     return 0;
 }
@@ -82,7 +106,7 @@ int ParaseArguments(int argc, char* argv[])
         else if(run)
         {
             // perform standard operation
-            return -1;
+            return isServer ? -1 : -2;
         }
     }
     catch (args::Help)
@@ -181,20 +205,19 @@ int SocketTest(bool isServer)
 {
     std::cout << "SocketTest" << std::endl;
     
-    Socket::OSSocketStartup();
 
     std::string toSend = "Hello !";
 
     char type = isServer ? 's' : 'c';
 
-    Socket socket("0.0.0.0", 6555, false, SOCKET_P_TCP);
+    Socket socket("0.0.0.0", 6555, false, SocketProtocol::SOCKET_P_TCP);
 
     switch(type)
     {
     case 'c':
     {
         SocketError e = socket.Connect("127.0.0.1");
-        if(e != SOCKET_E_SUCCESS)
+        if(e != SocketError::SOCKET_E_SUCCESS)
         {
             SocketException ex(e, socket.lastOSErr);
             std::cout << "Error connecting to server " << ex.what();
@@ -202,7 +225,7 @@ int SocketTest(bool isServer)
         }
 
         e = socket.Send(toSend);
-        if(e != SOCKET_E_SUCCESS)
+        if(e != SocketError::SOCKET_E_SUCCESS)
         {
             SocketException ex(e, socket.lastOSErr);
             std::cout << "Error sending from client " << ex.what();
@@ -210,7 +233,7 @@ int SocketTest(bool isServer)
         }
 
         e = socket.WaitForServer();
-        if(e != SOCKET_E_SUCCESS)
+        if(e != SocketError::SOCKET_E_SUCCESS)
         {
             SocketException ex(e, socket.lastOSErr);
             std::cout << "Error sending from client " << ex.what();
@@ -221,14 +244,14 @@ int SocketTest(bool isServer)
     case 's':
     {
             SocketError e = socket.Bind("127.0.0.1");
-            if(e != SOCKET_E_SUCCESS)
+            if(e != SocketError::SOCKET_E_SUCCESS)
             {
                 SocketException ex(e, socket.lastOSErr);
                 std::cout << "Error binding socket " << ex.what();
                 break;
             }
             e = socket.Listen();
-            if(e != SOCKET_E_SUCCESS)
+            if(e != SocketError::SOCKET_E_SUCCESS)
             {
                 SocketException ex(e, socket.lastOSErr);
                 std::cout << "Error listening on socket " << ex.what();
@@ -236,7 +259,7 @@ int SocketTest(bool isServer)
             }
             Socket* client = 0;
             e = socket.Accept(&client);
-            if(e != SOCKET_E_SUCCESS)
+            if(e != SocketError::SOCKET_E_SUCCESS)
             {
                 SocketException ex(e, socket.lastOSErr);
                 std::cout << "Error accepting client " << ex.what();
@@ -245,7 +268,7 @@ int SocketTest(bool isServer)
             char buf[256] = {0};
             size_t received = 0;
             e = client->Recv(buf,sizeof(buf), &received);
-            if(e != SOCKET_E_SUCCESS)
+            if(e != SocketError::SOCKET_E_SUCCESS)
             {
                 SocketException ex(e, client->lastOSErr);
                 std::cout << "Error recieving from client " << ex.what();
@@ -261,7 +284,6 @@ int SocketTest(bool isServer)
         break;
     }
 
-    Socket::OSSocketTeardown();
 
     return 0;
 }

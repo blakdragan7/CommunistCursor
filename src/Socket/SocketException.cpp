@@ -25,7 +25,7 @@ SocketException::SocketException(SocketError error, int osError) _NOEXCEPT : std
 {
     this->info = SockErrorToString(error);
 
-    if(error == SOCKET_E_OS_ERROR)
+    if(error == SocketError::SOCKET_E_OS_ERROR)
     {
         this->info += " With Internal Error:  " + OSErrorToString(osError);
     }
@@ -33,7 +33,7 @@ SocketException::SocketException(SocketError error, int osError) _NOEXCEPT : std
 
 SocketException::SocketException(const std::string info, SocketError error) _NOEXCEPT : std::exception()
 {
-    if(error == SOCKET_E_OS_ERROR)
+    if(error == SocketError::SOCKET_E_OS_ERROR)
     {
         this->info += " With Internal Error:  " + std::to_string(OSGetLastError());
     }

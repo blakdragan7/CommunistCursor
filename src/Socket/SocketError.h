@@ -3,7 +3,7 @@
 
 #include <string>
 
-enum SocketError
+enum class SocketError
 {
     SOCKET_E_SUCCESS,
     SOCKET_E_NOT_INITIALIZED,
@@ -20,6 +20,7 @@ enum SocketError
     SOCKET_E_BIND,
     SOCKET_E_NETWORK,
     SOCKET_E_OS_ERROR,
+    SOCKET_E_NOT_IMPLEMENTED,
     SOCKET_E_UNKOWN
 };
 
