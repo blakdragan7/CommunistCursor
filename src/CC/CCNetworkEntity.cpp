@@ -5,18 +5,18 @@
 #include "../OSInterface/PacketTypes.h"
 #include "CCDisplay.h"
 
-int CCNetworkEntity::SendKeyEventPacket(const OSEvent& event)const
+SocketError CCNetworkEntity::SendKeyEventPacket(const OSEvent& event)const
 {
     KeyEventPacket packet(event);
     EventPacketHeader header(EVENT_PACKET_K);
 
-    int ret = _internalSocket->Send(&header, sizeof(header));
-    if(ret != SOCKET_E_SUCCESS)
+    SocketError ret = _internalSocket->Send(&header, sizeof(header));
+    if(ret != SocketError::SOCKET_E_SUCCESS)
         return ret;
     return _internalSocket->Send(&packet, sizeof(packet));
 }
 
-int CCNetworkEntity::SendMouseEventPacket(const OSEvent& event)const
+SocketError CCNetworkEntity::SendMouseEventPacket(const OSEvent& event)const
 {
     switch(event.subEvent.mouseEvent)
     {
@@ -26,8 +26,8 @@ int CCNetworkEntity::SendMouseEventPacket(const OSEvent& event)const
                 EventPacketHeader header(EVENT_PACKET_MB);
                 MouseButtonEventPacket packet(event);
 
-                int ret = _internalSocket->Send(&header, sizeof(header));
-                if(ret != SOCKET_E_SUCCESS)
+                SocketError ret = _internalSocket->Send(&header, sizeof(header));
+                if(ret != SocketError::SOCKET_E_SUCCESS)
                     return ret;
                 return _internalSocket->Send(&packet, sizeof(packet));
             }
@@ -37,8 +37,8 @@ int CCNetworkEntity::SendMouseEventPacket(const OSEvent& event)const
                 EventPacketHeader header(EVENT_PACKET_MW);
                 MouseWheelEventPacket packet(event);
 
-                int ret = _internalSocket->Send(&header, sizeof(header));
-                if(ret != SOCKET_E_SUCCESS)
+                SocketError ret = _internalSocket->Send(&header, sizeof(header));
+                if(ret != SocketError::SOCKET_E_SUCCESS)
                     return ret;
                 return _internalSocket->Send(&packet, sizeof(packet));
             }
@@ -48,37 +48,37 @@ int CCNetworkEntity::SendMouseEventPacket(const OSEvent& event)const
                 EventPacketHeader header(EVENT_PACKET_MM);
                 MouseMoveEventPacket packet(event);
 
-                int ret = _internalSocket->Send(&header, sizeof(header));
-                if(ret != SOCKET_E_SUCCESS)
+                SocketError ret = _internalSocket->Send(&header, sizeof(header));
+                if(ret != SocketError::SOCKET_E_SUCCESS)
                     return ret;
                 return _internalSocket->Send(&packet, sizeof(packet));
             }
             break;
         default:
-            return SOCKET_E_INVALID_PARAM;
+            return SocketError::SOCKET_E_INVALID_PARAM;
     }
 }
 
-int CCNetworkEntity::SendHIDEventPacket(const OSEvent& event)const
+SocketError CCNetworkEntity::SendHIDEventPacket(const OSEvent& event)const
 {
     // not implemented yet
-    return SOCKET_E_UNKOWN;
+    return SocketError::SOCKET_E_NOT_IMPLEMENTED;
 }
 
 CCNetworkEntity::CCNetworkEntity(Socket* socket) : _internalSocket(socket)
 {}
 
-int CCNetworkEntity::Send(const char* buff, const size_t size)const
+SocketError CCNetworkEntity::Send(const char* buff, const size_t size)const
 {
     return _internalSocket->Send(buff, size);
 }
 
-int CCNetworkEntity::Send(const std::string toSend)const
+SocketError CCNetworkEntity::Send(const std::string toSend)const
 {
     return _internalSocket->Send(toSend);
 }
 
-int CCNetworkEntity::SendOSEvent(const OSEvent& event)const
+SocketError CCNetworkEntity::SendOSEvent(const OSEvent& event)const
 {
     switch(event.eventType)
     {
@@ -92,26 +92,25 @@ int CCNetworkEntity::SendOSEvent(const OSEvent& event)const
             return SendHIDEventPacket(event);
             break;
         default:
-            return SOCKET_E_INVALID_PARAM;
+            return SocketError::SOCKET_E_INVALID_PARAM;
     }
 }
 
-void CCNetworkEntity::AddDisplay(CCDisplay* display)
+void CCNetworkEntity::AddDisplay(std::shared_ptr<CCDisplay> display)
 {
     displays.push_back(display);
 }
 
-void CCNetworkEntity::RemoveDisplay(CCDisplay* display)
+void CCNetworkEntity::RemoveDisplay(std::shared_ptr<CCDisplay> display)
 {
     auto iter = std::find(displays.begin(), displays.end(),display);
     if(iter != displays.end())
     {
         displays.erase(iter);
-        delete display;
     }
 }
 
-const CCDisplay* CCNetworkEntity::DisplayForPoint(const Point& point)const
+const std::shared_ptr<CCDisplay> CCNetworkEntity::DisplayForPoint(const Point& point)const
 {
     for(auto display : displays)
     {
@@ -120,4 +119,15 @@ const CCDisplay* CCNetworkEntity::DisplayForPoint(const Point& point)const
     }
 
     return NULL;
+}
+
+bool CCNetworkEntity::PointIntersectsEntity(const Point& p) const
+{
+    for (auto display : displays)
+    {
+        if (display->PointIsInBounds(p))
+            return true;
+    }
+
+    return false;
 }
