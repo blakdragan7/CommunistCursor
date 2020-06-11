@@ -24,8 +24,9 @@ public:
 	CCBroadcastManager();
 	CCBroadcastManager(std::string broadcastAddress, int broadcastPort);
 
-	// Starts broadcasting server address and port
-	void StartBraodcasting(std::string serverAddress, int serverPort);
+	// Broadcasts the {serverAddress} and {serverPort} to broadcastAddress on broadcastPort
+	// returns false on failure to braodcast
+	bool BroadcastNow(std::string serverAddress, int serverPort);
 	// Stops broadscasting once refresh hits
 	void StopBroadcasting();
 	// blocks until broadcast of server address is received.

@@ -1,14 +1,11 @@
 #include "CCBroadcastManager.h"
 
-#include <chrono>
-#include <thread>
 #include <iostream>
 
 #include "../Socket/SocketError.h"
 #include "../Socket/Socket.h"
 
 #include "CCPacketTypes.h"
-
 
 CCBroadcastManager::CCBroadcastManager() : shouldBroadcast(false)
 {
@@ -19,11 +16,9 @@ _internalSocket(new Socket(broadcastAddress, broadcastPort, false,  SocketProtoc
 {
 }
 
-void CCBroadcastManager::StartBraodcasting(std::string serverAddress, int serverPort)
+bool CCBroadcastManager::BroadcastNow(std::string serverAddress, int serverPort)
 {
 	_internalSocket->SetIsBroadcastable(true);
-
-	shouldBroadcast = true;
 
 	AddressPacket addressPacket;
 
@@ -31,18 +26,16 @@ void CCBroadcastManager::StartBraodcasting(std::string serverAddress, int server
 	addressPacket.Address[serverAddress.length()] = 0;
 	addressPacket.Port = serverPort;
 	
-	while (shouldBroadcast)
+	std::cout << "Broadcasting Address As {" << addressPacket.Address << "," << addressPacket.Port << "}" << std::endl;
+	SocketError error = _internalSocket->SendTo(&addressPacket, sizeof(addressPacket));
+
+	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Broadcasting Address As {" << addressPacket.Address << "," << addressPacket.Port << "}" << std::endl;
-		SocketError error = _internalSocket->SendTo(&addressPacket, sizeof(addressPacket));
-
-		if (error != SocketError::SOCKET_E_SUCCESS)
-		{
-			std::cout << "Error trying to send Broadcast " << SockErrorToString(error) << std::endl;
-		}
-
-		std::this_thread::sleep_for(std::chrono::seconds(5));
+		std::cout << "Error trying to send Broadcast " << SockErrorToString(error) << std::endl;
+		return false;
 	}
+
+	return true;
 }
 
 void CCBroadcastManager::StopBroadcasting()
