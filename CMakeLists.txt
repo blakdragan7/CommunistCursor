@@ -30,7 +30,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         file(GLOB CC_WINDOWS "src/Windows/*.cpp" "src/Windows/*.h")
 		source_group("Windows" FILES ${CC_WINDOWS})
         add_executable(CommunistCursor ${CC_MAIN} ${CC_SOURCE} ${CC_OSINTERFACE} ${CC_SOCKET} ${SUB_ARGS} ${CC_WINDOWS} )
-        target_link_libraries(CommunistCursor ws2_32.lib)
+        target_link_libraries(CommunistCursor ws2_32.lib IPHLPAPI)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
