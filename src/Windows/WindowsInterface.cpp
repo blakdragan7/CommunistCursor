@@ -152,7 +152,7 @@ int GetAllDisplays(std::vector<NativeDisplay>& outDisplays)
 int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfoHints& hints)
 {
     ULONG family = 0;
-    ULONG flags = 0;
+    ULONG flags = GAA_FLAG_SKIP_DNS_SERVER;
 
     switch (hints.familly)
     {
@@ -162,9 +162,22 @@ int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfo
     case IPAddressFamilly::IPv6:
         family = AF_INET6;
         break;
-    case IPAddressFamilly::ANY:
+    case IPAddressFamilly::ALL:
     default:
         family = AF_UNSPEC;
+    }
+
+    if ((hints.type & IPAddressType::ANYCAST) == IPAddressType::NONE)
+    {
+        flags |= GAA_FLAG_SKIP_ANYCAST;
+    }
+    if ((hints.type & IPAddressType::MULTICAST) == IPAddressType::NONE)
+    {
+        flags |= GAA_FLAG_SKIP_MULTICAST;
+    }
+    if ((hints.type & IPAddressType::UNICAST) == IPAddressType::NONE)
+    {
+        flags |= GAA_FLAG_SKIP_UNICAST;
     }
 
     ULONG adaptorAddressSize = DEFAULT_ADAPTOR_ADDRESS_SIZE;
@@ -196,11 +209,20 @@ int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfo
 
     while (currentAddress)
     {
+        if(currentAddress->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+        {
+            currentAddress = currentAddress->Next;
+            continue;
+        }
+
         IP_ADAPTER_UNICAST_ADDRESS* currentUnicast = currentAddress->FirstUnicastAddress;
         while (currentUnicast)
         {
             IPAdressInfo info;
             info.adaptorName = currentAddress->AdapterName;
+            info.addressType = IPAddressType::UNICAST;
+            info.addressFamilly = (currentUnicast->Address.iSockaddrLength == sizeof(sockaddr_in)) ? IPAddressFamilly::IPv4 : IPAddressFamilly::IPv6;
+            
             char buff[43] = { 0 };
             DWORD buffSize = sizeof(buff);
             ret = WSAAddressToString(currentUnicast->Address.lpSockaddr, currentUnicast->Address.iSockaddrLength, NULL,
@@ -214,9 +236,103 @@ int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfo
 
             info.address = buff;
 
+            ULONG MaskInt = 0;
+            ret = ConvertLengthToIpv4Mask(currentUnicast->OnLinkPrefixLength, &MaskInt);
+
+            if (ret == NO_ERROR)
+            {
+                char buff[16] = { 0 };
+                inet_ntop(AF_INET, &MaskInt, buff, 16);
+
+                info.subnetMask = buff;
+            }
+            else
+            {
+                // we failed to get subnet but that isn't critical so we just print an error and continue anyway
+
+                std::cout << "Error Getting SubnetMask from OnLinkPrefixLength: " << ret << std::endl;
+            }
+
             outAddresses.push_back(info);
 
             currentUnicast = currentUnicast->Next;
+        }
+        IP_ADAPTER_ANYCAST_ADDRESS* currentAnycast = currentAddress->FirstAnycastAddress;
+        while (currentAnycast)
+        {
+            IPAdressInfo info;
+            info.adaptorName = currentAddress->AdapterName;
+            info.addressType = IPAddressType::ANYCAST;
+            info.addressFamilly = (currentAnycast->Address.iSockaddrLength == sizeof(sockaddr_in)) ? IPAddressFamilly::IPv4 : IPAddressFamilly::IPv6;
+
+            char buff[43] = { 0 };
+            DWORD buffSize = sizeof(buff);
+            ret = WSAAddressToString(currentAnycast->Address.lpSockaddr, currentAnycast->Address.iSockaddrLength, NULL,
+                buff, &buffSize);
+
+            if (ret == SOCKET_ERROR)
+            {
+                std::cout << "Error Converting Address To String " << WSAGetLastError();
+                continue;
+            }
+
+            info.address = buff;
+
+            outAddresses.push_back(info);
+
+            currentAnycast = currentAnycast->Next;
+        }
+
+        IP_ADAPTER_MULTICAST_ADDRESS* currentMulticast = currentAddress->FirstMulticastAddress;
+        while (currentMulticast)
+        {
+            IPAdressInfo info;
+            info.adaptorName = currentAddress->AdapterName;
+            info.addressType = IPAddressType::MULTICAST;
+            info.addressFamilly = (currentMulticast->Address.iSockaddrLength == sizeof(sockaddr_in)) ? IPAddressFamilly::IPv4 : IPAddressFamilly::IPv6;
+
+            char buff[43] = { 0 };
+            DWORD buffSize = sizeof(buff);
+            ret = WSAAddressToString(currentMulticast->Address.lpSockaddr, currentMulticast->Address.iSockaddrLength, NULL,
+                buff, &buffSize);
+
+            if (ret == SOCKET_ERROR)
+            {
+                std::cout << "Error Converting Address To String " << WSAGetLastError();
+                continue;
+            }
+
+            info.address = buff;
+
+            outAddresses.push_back(info);
+
+            currentMulticast = currentMulticast->Next;
+        }
+
+        IP_ADAPTER_DNS_SERVER_ADDRESS* currentDNSServer = currentAddress->FirstDnsServerAddress;
+        while (currentDNSServer)
+        {
+            IPAdressInfo info;
+            info.adaptorName = currentAddress->AdapterName;
+            info.addressType = IPAddressType::MULTICAST;
+            info.addressFamilly = (currentDNSServer->Address.iSockaddrLength == sizeof(sockaddr_in)) ? IPAddressFamilly::IPv4 : IPAddressFamilly::IPv6;
+
+            char buff[43] = { 0 };
+            DWORD buffSize = sizeof(buff);
+            ret = WSAAddressToString(currentDNSServer->Address.lpSockaddr, currentDNSServer->Address.iSockaddrLength, NULL,
+                buff, &buffSize);
+
+            if (ret == SOCKET_ERROR)
+            {
+                std::cout << "Error Converting Address To String " << WSAGetLastError();
+                continue;
+            }
+
+            info.address = buff;
+
+            outAddresses.push_back(info);
+
+            currentDNSServer = currentDNSServer->Next;
         }
 
         currentAddress = currentAddress->Next;
