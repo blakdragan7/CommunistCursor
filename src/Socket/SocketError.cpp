@@ -7,6 +7,8 @@
 #include <errno.h>
 #endif
 
+#include "Socket.h"
+
 #ifndef WSAEADDRINUSE
 #define WSAEADDRINUSE EADDRINUSE
 #endif
@@ -119,4 +121,16 @@ SocketError OSErrorToSocketError(int os_err)
     default:
         return SocketError::SOCKET_E_OS_ERROR;
     }
+}
+
+std::string FormatedStringWithSocketAndSocketError(Socket* socket, SocketError error)
+{
+   std::string info = SockErrorToString(error);
+
+    if (error == SocketError::SOCKET_E_OS_ERROR)
+    {
+        info += " With Internal Error:  " + OSErrorToString(socket->lastOSErr);
+    }
+
+    return info;
 }

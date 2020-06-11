@@ -1,5 +1,8 @@
+#include "IOSEventReceiver.h"
 #include "NativeInterface.h"
 #include "PacketTypes.h"
+#include "OSInterface.h"
+
 #include <iostream>
 #include <thread>
 
@@ -20,18 +23,18 @@ OSInterfaceError OSInterface::ConvertEventToNativeCoords(const OSEvent inEvent, 
     int OSError = ::ConvertEventCoordsToNative(inEvent, outEvent);
     if(OSError != 0)
         return OSErrorToOSInterfaceError(OSError);
-    return OS_E_SUCCESS;
+    return OSInterfaceError::OS_E_SUCCESS;
 }
 
 OSInterfaceError OSInterface::SendMouseEvent(OSEvent mouseEvent)
 {
     if(mouseEvent.eventType != OS_EVENT_MOUSE)
-        return OS_E_INVALID_PARAM;
+        return OSInterfaceError::OS_E_INVALID_PARAM;
 
     int OSError = ::SendMouseEvent(mouseEvent);
 
     if(OSError == 0)
-        return OS_E_SUCCESS;
+        return OSInterfaceError::OS_E_SUCCESS;
     else
         return OSErrorToOSInterfaceError(OSError);
 }
@@ -39,17 +42,17 @@ OSInterfaceError OSInterface::SendMouseEvent(OSEvent mouseEvent)
 OSInterfaceError OSInterface::SendKeyEvent(OSEvent keyEvent)
 {
     if(keyEvent.eventType != OS_EVENT_KEY)
-        return OS_E_INVALID_PARAM;
+        return OSInterfaceError::OS_E_INVALID_PARAM;
 
     int OSError = ::SendKeyEvent(keyEvent);
 
     if(OSError == 0)
-        return OS_E_SUCCESS;
+        return OSInterfaceError::OS_E_SUCCESS;
     else
         return OSErrorToOSInterfaceError(OSError);
 }
 
-OSInterfaceError OSInterface::RegisterForOSEvents(OSEventCallback callback, void* userInfo)
+OSInterfaceError OSInterface::RegisterForOSEvents(IOSEventReceiver* newReceiver)
 {
     if(hasHookedEvents == false)
     {
@@ -63,41 +66,58 @@ OSInterfaceError OSInterface::RegisterForOSEvents(OSEventCallback callback, void
         hasHookedEvents = true;
     }
 
-    while(MapAccessMutex.try_lock() == false)SLEEPM(1);
+    while(mapAccessMutex.try_lock() == false)SLEEPM(1);
+    
+    eventReceivers.push_back(newReceiver);
 
-    if(OSEventRegisterdCallbacks.count(userInfo) > 0)
+    mapAccessMutex.unlock();
+    
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
+OSInterfaceError OSInterface::UnRegisterForOSEvents(IOSEventReceiver* toRemove)
+{
+    while(mapAccessMutex.try_lock() == false)SLEEPM(1);
+
+    auto itr = std::find(eventReceivers.begin(), eventReceivers.end(), toRemove);
+
+    if (itr != eventReceivers.end())
     {
-        MapAccessMutex.unlock();
-        return OS_E_ALREADY_REGISTERED;
+        eventReceivers.erase(itr);
+        mapAccessMutex.unlock();
+        return OSInterfaceError::OS_E_SUCCESS;
     }
     else
     {
-        OSEventRegisterdCallbacks.insert(OSEventEntry(userInfo, callback));
-        MapAccessMutex.unlock();
-        return OS_E_SUCCESS;
+        mapAccessMutex.unlock();
+        return OSInterfaceError::OS_E_NOT_REGISTERED;
     }
 }
 
-OSInterfaceError OSInterface::UnRegisterForOSEvents(void* userInfo)
+OSInterfaceError OSInterface::GetNativeDisplayList(std::vector<NativeDisplay>& displayList)
 {
-    while(MapAccessMutex.try_lock() == false)SLEEPM(1);
-
-    if(OSEventRegisterdCallbacks.count(userInfo) > 0)
-    {
-        OSEventRegisterdCallbacks.erase(userInfo);
-        if(OSEventRegisterdCallbacks.empty())
-        {
-            NativeUnhookAllEvents();
-            hasHookedEvents = false;
-        }
-        MapAccessMutex.unlock();
-        return OS_E_SUCCESS;
-    }
+    int OSError = GetAllDisplays(displayList);
+    if (OSError == 0)
+        return OSInterfaceError::OS_E_SUCCESS;
     else
-    {
-        MapAccessMutex.unlock();
-        return OS_E_NOT_REGISTERED;
-    }
+        return OSErrorToOSInterfaceError(OSError);
+}
+
+OSInterfaceError OSInterface::GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfoHints hints)
+{
+    int OSError = ::GetIPAddressList(outAddresses, hints);
+    if (OSError == 0)
+        return OSInterfaceError::OS_E_SUCCESS;
+    return OSErrorToOSInterfaceError(OSError);
+}
+
+OSInterfaceError OSInterface::GetMousePosition(int& xPos, int& yPos)
+{
+    int ret = ::GetMousePosition(xPos, yPos);
+    if(ret != 0)
+        return OSErrorToOSInterfaceError(ret);
+
+    return OSInterfaceError::OS_E_SUCCESS;
 }
 
 void OSInterface::OSMainLoop()
@@ -111,16 +131,25 @@ void OSInterface::StopMainLoop()
     shouldRunMainloop = false;
 }
 
-void OSInterface::UpdateThread(OSEvent event)
+bool OSInterface::ConsumeInputEvent(OSEvent event)
 {
-    while(MapAccessMutex.try_lock() == false)SLEEPM(1);
+    while(mapAccessMutex.try_lock() == false)SLEEPM(1);
 
-    for(OSEventEntry entry : OSEventRegisterdCallbacks)
+    bool shouldConsumeEvent = false;
+
+    // If any of the receivers request it we consume the event (generally speaking there will only ever be one)
+
+    for(IOSEventReceiver* receiver : eventReceivers)
     {
-        entry.second(event, entry.first);
+        if (receiver->ReceivedNewInputEvent(event))
+        {
+            shouldConsumeEvent = true;
+        }
     }
 
-    MapAccessMutex.unlock();
+    mapAccessMutex.unlock();
+
+    return shouldConsumeEvent;
 }
 
 std::ostream& operator<<(std::ostream& os, const NativeDisplay& display)

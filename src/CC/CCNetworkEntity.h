@@ -45,9 +45,7 @@ public:
     SocketError SendOSEvent(const OSEvent& event)const;
 
     // This will add the display to the internal displays vector
-    // class. bounds is a global virtual space bounds of this display
     void AddDisplay(std::shared_ptr<CCDisplay> display);
-
     // this will remove and the display passed to this function from internal list of displays
     // Entity, if not it does nothing 
     void RemoveDisplay(std::shared_ptr<CCDisplay> display);
@@ -56,6 +54,11 @@ public:
     const std::shared_ptr <CCDisplay> DisplayForPoint(const Point& point)const;
     // this returns wether or not {p} is within the bounds of any of it's displays
     bool PointIntersectsEntity(const Point& p)const;
+
+    // return a list of all displays accosiated with this entity
+    // This is currently just used for hardcoding coords for testing
+
+    inline std::vector<std::shared_ptr<CCDisplay>> GetAllDisplays()const { return displays; }
 };
 
 #endif

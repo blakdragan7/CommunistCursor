@@ -21,6 +21,7 @@ private:
 	bool shouldBroadcast;
 
 public:
+	CCBroadcastManager();
 	CCBroadcastManager(std::string broadcastAddress, int broadcastPort);
 
 	// Starts broadcasting server address and port

@@ -244,7 +244,7 @@ int SendMouseEvent(const OSEvent mouseEvent)
     return 0;
 }
 
-int GetAllDisplays(std::vector<NativeDisplay>& outDisplays)
+int GetAllDisplays(std::list<NativeDisplay>& outDisplays)
 {
     CGDirectDisplayID ids[16] = {0};
     uint32_t numDisplays = 0;

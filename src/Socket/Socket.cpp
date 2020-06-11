@@ -125,8 +125,7 @@ SocketError Socket::MakeInternalSocketInfo()
     hints.ai_flags = _isBindable ? AI_PASSIVE : 0;
     hints.ai_family = AF_UNSPEC;
 
-    if(_isBindable)
-        hints.ai_family = _useIPV6 ? AF_INET6 : AF_INET;
+    hints.ai_family = _useIPV6 ? AF_INET6 : AF_INET;
 
     switch(protocol)
     {
@@ -450,6 +449,41 @@ SocketError Socket::Recv(char* buff, size_t buffLength, size_t* receivedLength)
     return SocketError::SOCKET_E_SUCCESS;
 }
 
+SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t buffLength, size_t* receivedLength)
+{
+    if (buff == 0 || buffLength == 0 || receivedLength == 0)
+        return SocketError::SOCKET_E_INVALID_PARAM;
+
+    if (protocol != SocketProtocol::SOCKET_P_UDP)
+        return SocketError::SOCKET_E_INVALID_PROTO;
+
+    struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
+
+    struct sockaddr_in recv_addr;
+    int recvAddrSize = sizeof(recv_addr);
+
+    recv_addr.sin_family = result->ai_family;
+    recv_addr.sin_port = htons(port);
+    int res = inet_pton(recv_addr.sin_family, address.c_str(), &recv_addr.sin_addr.s_addr);
+
+    int received = recvfrom((SOCKET)sfd, buff, (int)buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
+
+    if (received == SOCKET_ERROR)
+    {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
+
+    *receivedLength = received;
+
+    return SocketError::SOCKET_E_SUCCESS;
+}
+
+SocketError Socket::RecvFrom(char* buff, size_t buffLength, size_t* receivedLength)
+{
+    return RecvFrom(address, port, buff, buffLength, receivedLength);
+}
+
 SocketError Socket::WaitForServer()
 {
     if(isConnected == false && protocol != SocketProtocol::SOCKET_P_UDP)
@@ -469,6 +503,20 @@ SocketError Socket::WaitForServer()
         }
     } while (received > 0);
     
+    return SocketError::SOCKET_E_SUCCESS;
+}
+
+SocketError Socket::Close()
+{
+    int iResult = closesocket((SOCKET)sfd);
+    if (iResult == SOCKET_ERROR) {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
+
+    sfd = (NativeSocketHandle)INVALID_SOCKET;
+    
+
     return SocketError::SOCKET_E_SUCCESS;
 }
 
@@ -521,17 +569,6 @@ SocketError Socket::Disconnect(SocketDisconectType sdt)
         return SOCK_ERR(lastOSErr);
     }
 
-    if (sdt == SocketDisconectType::SDT_ALL)
-    {
-        iResult = closesocket((SOCKET)sfd);
-        if (iResult == SOCKET_ERROR) {
-            lastOSErr = OSGetLastError();
-            return SOCK_ERR(lastOSErr);
-        }
-
-        sfd = (NativeSocketHandle)INVALID_SOCKET;
-    }
-
     return SocketError::SOCKET_E_SUCCESS;
 }
 
@@ -563,9 +600,28 @@ SocketError Socket::Listen(int maxAwaitingConnections)
 
 SocketError Socket::Bind()
 {
-    struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
-    int iresult = bind((SOCKET)sfd, result->ai_addr, (int)result->ai_addrlen);
+    int iresult = 0;
+    struct sockaddr_in addr_in;
 
+    struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
+
+    addr_in.sin_family = result->ai_family;
+    addr_in.sin_port = htons(port);
+    if (address == SOCKET_ANY_ADDRESS)
+    {
+        addr_in.sin_addr.s_addr = INADDR_ANY;
+    }
+    else
+    {
+        iresult = inet_pton(result->ai_family, address.c_str(), &addr_in.sin_addr);
+        if (iresult == SOCKET_ERROR)
+        {
+            lastOSErr = OSGetLastError();
+            return SOCK_ERR(lastOSErr);
+        }
+    }
+
+    iresult = bind((SOCKET)sfd, (sockaddr*)&addr_in, sizeof(addr_in));
     if(iresult == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();

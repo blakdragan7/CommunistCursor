@@ -4,6 +4,7 @@
 #define SOCKET_H
 
 #include <string>
+#include <vector>
 
 #include "SocketError.h"
 
@@ -18,7 +19,8 @@ typedef int NativeSocketHandle;
 enum class SocketProtocol
 {
     SOCKET_P_UDP,
-    SOCKET_P_TCP
+    SOCKET_P_TCP,
+    SOCKET_P_ANY
 };
 
 enum class SocketDisconectType
@@ -87,13 +89,22 @@ public:
     SocketError Send(const std::string& toSend);
     // Receive From Socket Similiar to posix recv
     SocketError Recv(char* buff, size_t buffLength, size_t* receivedLength);
-
+    // Receive From Socket similiar to posix recvfrom
+    SocketError RecvFrom(std::string address, int port, char* buff, size_t buffLength, size_t* receivedLength);
+    // Receive From Socket similiar to posix recvfrom, uses {this->address} and {this->port} as address to receive from
+    SocketError RecvFrom(char* buff, size_t buffLength, size_t* receivedLength);
+    // binds to a port using {this->port} as the port to bind to
     SocketError Bind();
     // can be used to change port to bind to w/o creating a new socket
+    // sets the internal socket port to {port}
     SocketError Bind(int port);
     // can be used to change address / port to bind to w/o creating a new socket
+    // sets the internal address as {address} and port as {port} if port isnt -1
     SocketError Bind(const std::string& address, int port = -1);
     // Disconect socket based on SocketDisconectType
+    // SDT_ALL completly disconnects both sides of socket (basically same as close without release socket)
+    // SDT_SEND disconnects the "Send" side of the socket but it can still receive
+    // SDT_RECEIVE disconnects the "Receive" side of the socket but it can still send
     SocketError Disconnect(SocketDisconectType sdt = SocketDisconectType::SDT_ALL);
     // allows for maximum backlog of connections as defined by the OS
     SocketError Listen();
@@ -105,11 +116,14 @@ public:
     // NOT FULLY IMPLEMENTED WILL ALWAYS RETURN ERROR
     SocketError Accept(Socket** acceptedSocket, size_t timeout);
     // wait for server to close socket, basically used client side 
-    // to wait for the server to finish using the socket
+    // to wait for the server to finish using the socket, really only matters for tcp sockets
     SocketError WaitForServer();
+    // closes the socket by calling closesocket or simliar function from OS
+    SocketError Close();
 
     // Setters
 
+    // sets the stats of this socket to be able to multicast if true or disables them if false
     SocketError SetIsBroadcastable(bool);
 
     // Getters
@@ -118,6 +132,8 @@ public:
     inline bool GetIsBound()const { return isBound; }
     inline bool GetIsConnected()const { return isConnected; }
     inline bool GetIsBradcastable()const { return isBroadcast; }
+    inline bool GetCanUseIPV6()const {return _useIPV6;}
+    inline const std::string& GetAddress()const { return address; }
 
     /* this must be called before any sockets are created */
     static void OSSocketStartup();

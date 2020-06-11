@@ -1,7 +1,8 @@
 #ifndef NATIVE_INTERFACE_H
 #define NATIVE_INTERFACE_H
 #include "OSInterface.h"
-#include <vector>
+#include "OSTypes.h"
+#include <list>
 /*
     Registers OSInterface osi with key and mouse events on the OS using native methods
     this calles UpdateThread of the osi passed with a generate OSEvent from the native events
@@ -41,12 +42,26 @@ extern int SendKeyEvent(const OSEvent keyEvent);
 */
 extern int GetAllDisplays(std::vector<NativeDisplay>& outDisplays);
 /*
+    Retreives all valid IP address that are not the  loop back from the OS.
+    the contents of outAddresses is filled with the address but it is not cleared
+    so new addresses are just appended to the list
+
+    returns a SocketError
+ */
+extern int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfoHints& hints);
+/*
     Converts inEvent posX,posY,minX,minY,maxX and maxY to a native counterpart so that
     SendMouseEvent will send the event to the correct position
 
     this will always return 0 
 */
 extern int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent);
+/*
+    Returns an OS error or 0 on success
+
+    Gets the mouse position and stores it in {xPos} and {yPos}
+*/
+extern int GetMousePosition(int& xPos, int& yPos);
 /*
     this tries to convert OSError to an OSInterfaceError.
     

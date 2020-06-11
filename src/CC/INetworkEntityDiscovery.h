@@ -1,6 +1,8 @@
 #ifndef INETWORK_DISCOVERY_H
 #define INETWORK_DISCOVERY_H
 
+#include <memory>
+
 enum class NELostReason
 {
     NEGracefuleDisconnect,
@@ -16,8 +18,8 @@ class CCNetworkEntity;
 class INetworkEntityDiscovery
 {
 public:
-    virtual void NewEntityDiscovered(CCNetworkEntity* entity) = 0;
-    virtual void EntityLost(CCNetworkEntity* entity, NELostReason lostReason) = 0;
+    virtual void NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity) = 0;
+    virtual void EntityLost(std::shared_ptr<CCNetworkEntity> entity, NELostReason lostReason) = 0;
 };
 
 #endif

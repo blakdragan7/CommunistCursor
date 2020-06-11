@@ -7,10 +7,20 @@
 #include "Socket/SocketException.h"
 #include "OSInterface/OSInterface.h"
 #include "OSInterface/NativeInterface.h"
+#include "OSInterface/IOSEventReceiver.h"
+
+#include "OSInterface/OSTypes.h"
 
 #include "CC/CCMain.h"
 
-void Callback(OSEvent event, void* info);
+class TestEventReceiver : public IOSEventReceiver
+{
+    virtual bool ReceivedNewInputEvent(const OSEvent event)override
+    {
+        std::cout << event << std::endl;
+        return false;
+    }
+};
 
 int EventTest();
 int SocketTest(bool isServer);
@@ -23,6 +33,10 @@ bool shouldPause = false;
 int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
+
+    std::vector<IPAdressInfo> address;
+
+    OSInterface::SharedInterface().GetIPAddressList(address, {IPAddressType::UNICAST | IPAddressType::MULTICAST, IPAddressFamilly::IPv4});
 
     int res = ParaseArguments(argc,argv);
 
@@ -145,7 +159,7 @@ int MouseMoveTest()
     event.deltaY = 20;
 
     auto error = osi.SendMouseEvent(event);
-    if(error != OS_E_SUCCESS)
+    if(error != OSInterfaceError::OS_E_SUCCESS)
     {
         std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
         return 0;
@@ -169,7 +183,7 @@ int KeyTest()
     //std::cin.get();
 
     auto error = osi.SendKeyEvent(event);
-    if(error != OS_E_SUCCESS)
+    if(error != OSInterfaceError::OS_E_SUCCESS)
     {
         std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
         return 0;
@@ -179,7 +193,7 @@ int KeyTest()
 
     event.subEvent.keyEvent = KEY_EVENT_UP;
     error = osi.SendKeyEvent(event);
-    if(error != OS_E_SUCCESS)
+    if(error != OSInterfaceError::OS_E_SUCCESS)
     {
         std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
     }
@@ -192,11 +206,12 @@ int EventTest()
     std::cout << "EventTest" << std::endl;
     
     OSInterface& osi = OSInterface::SharedInterface();
+    TestEventReceiver receiver;
 
     void* someData = (void*)10;
-    osi.RegisterForOSEvents(Callback, someData);
+    osi.RegisterForOSEvents(&receiver);
     osi.OSMainLoop();
-    osi.UnRegisterForOSEvents(someData);
+    osi.UnRegisterForOSEvents(&receiver);
 
     return 0;
 }
@@ -286,9 +301,4 @@ int SocketTest(bool isServer)
 
 
     return 0;
-}
-
-void Callback(OSEvent event, void* info)
-{
-    std::cout << event << std::endl;
 }

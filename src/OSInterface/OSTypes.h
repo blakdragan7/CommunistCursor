@@ -2,6 +2,58 @@
 #define OS_TYPES_H
 
 #include <iostream>
+#include <bitset>
+
+#define ADD_ENUMCLASS_BITWISE_OPERATORS(EnumType) \
+extern EnumType operator |(const EnumType& lh, const EnumType& rh);\
+extern EnumType operator |=(EnumType& lh, const EnumType& rh);\
+extern EnumType operator &(const EnumType& lh, const EnumType& rh);\
+extern EnumType operator &=(EnumType& lh, const EnumType& rh);\
+extern EnumType operator ^(const EnumType& lh, const EnumType& rh);\
+extern EnumType operator ^=(EnumType& lh, const EnumType& rh);\
+extern EnumType operator ~(const EnumType& rh);
+
+// IP Types
+
+enum class IPAddressFamilly
+{
+    IPv4 = 1 << 0,
+    IPv6 = 1 << 1,
+    ANY  = 0x255
+};
+
+ADD_ENUMCLASS_BITWISE_OPERATORS(IPAddressFamilly)
+
+enum class IPAddressType
+{
+    UNICAST     = 1 << 0,
+    MULTICAST   = 1 << 1,
+    ANYCAST     = 1 << 2,
+    ANY         = 0x255
+};
+
+ADD_ENUMCLASS_BITWISE_OPERATORS(IPAddressType)
+
+struct IPAdressInfo
+{
+    std::string		    address;
+    std::string		    subnetMask;
+    std::string		    adaptorName;
+
+    IPAddressFamilly    addressFamilly;
+    std::bitset<8>	    addressType;
+};
+
+struct IPAdressInfoHints
+{
+    IPAddressType type;
+    IPAddressFamilly familly;
+
+    IPAdressInfoHints() :type(IPAddressType::ANY), familly(IPAddressFamilly::ANY) {}
+    IPAdressInfoHints(IPAddressType type, IPAddressFamilly familly):type(type), familly(familly) {}
+};
+
+// Event Types
 
 enum OSEventType
 {

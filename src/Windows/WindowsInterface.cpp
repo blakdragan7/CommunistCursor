@@ -1,9 +1,16 @@
 #ifdef _WIN32
 #include "../OSInterface/OSInterface.h"
 
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+
 #include <windows.h>
 #include <functional>
 #include <vector>
+
+#define DEFAULT_ADAPTOR_ADDRESS_SIZE 15000;
+#define MAX_ADAPTOR_FETCH_TRIES 3
 
 OSInterface* osi = 0;
 HHOOK mouseHook=0, keyboardHook=0;
@@ -59,8 +66,14 @@ LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM
             break;
         }
 
-        osi->UpdateThread(event);
+        // if OSI requests it we consume the event and stop it here
+
+        if (osi->ConsumeInputEvent(event))
+        {
+            return 1;
+        }
     }
+
     return CallNextHookEx(0, nCode, wParam, lParam);
 }
 
@@ -86,7 +99,12 @@ LRESULT CALLBACK LowLevelKeyboardProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPA
             break;
         }
 
-        osi->UpdateThread(event);
+        // if OSI requests it we consume the event and stop it here
+
+        if (osi->ConsumeInputEvent(event))
+        {
+            return 1;
+        }
     }
     
     return CallNextHookEx(0, nCode, wParam, lParam);
@@ -131,6 +149,84 @@ int GetAllDisplays(std::vector<NativeDisplay>& outDisplays)
     return 0;
 }
 
+int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfoHints& hints)
+{
+    ULONG family = 0;
+    ULONG flags = 0;
+
+    switch (hints.familly)
+    {
+    case IPAddressFamilly::IPv4:
+        family = AF_INET;
+        break;
+    case IPAddressFamilly::IPv6:
+        family = AF_INET6;
+        break;
+    case IPAddressFamilly::ANY:
+    default:
+        family = AF_UNSPEC;
+    }
+
+    ULONG adaptorAddressSize = DEFAULT_ADAPTOR_ADDRESS_SIZE;
+    IP_ADAPTER_ADDRESSES* addresses = 0;
+
+    int iterations = 0;
+    ULONG ret = 0;
+    do
+    {
+        addresses = (IP_ADAPTER_ADDRESSES*)malloc(adaptorAddressSize);
+
+        ret = GetAdaptersAddresses(family, flags, NULL, addresses, &adaptorAddressSize);
+        if (ret == ERROR_BUFFER_OVERFLOW)
+        {
+            free(addresses);
+            addresses = NULL;
+            iterations++;
+        }
+        else break;
+
+    } while (ret == ERROR_BUFFER_OVERFLOW && (iterations < MAX_ADAPTOR_FETCH_TRIES));
+
+    if (ret != NO_ERROR)
+    {
+        return ret;
+    }
+
+    IP_ADAPTER_ADDRESSES* currentAddress = addresses;
+
+    while (currentAddress)
+    {
+        IP_ADAPTER_UNICAST_ADDRESS* currentUnicast = currentAddress->FirstUnicastAddress;
+        while (currentUnicast)
+        {
+            IPAdressInfo info;
+            info.adaptorName = currentAddress->AdapterName;
+            char buff[43] = { 0 };
+            DWORD buffSize = sizeof(buff);
+            ret = WSAAddressToString(currentUnicast->Address.lpSockaddr, currentUnicast->Address.iSockaddrLength, NULL,
+                buff, &buffSize);
+
+            if (ret == SOCKET_ERROR)
+            {
+                std::cout << "Error Converting Address To String " << WSAGetLastError();
+                continue;
+            }
+
+            info.address = buff;
+
+            outAddresses.push_back(info);
+
+            currentUnicast = currentUnicast->Next;
+        }
+
+        currentAddress = currentAddress->Next;
+    }
+
+    if (addresses)free(addresses);
+
+    return 0;
+}
+
 int NativeRegisterForOSEvents(OSInterface* _osi)
 {
     osi = _osi;
@@ -156,6 +252,20 @@ int NativeRegisterForOSEvents(OSInterface* _osi)
     }
 
     return GetLastError();
+}
+
+int GetMousePosition(int& xPos, int& yPos)
+{
+    POINT p;
+    if (GetCursorPos(&p))
+    {
+        xPos = p.x;
+        yPos = p.y;
+
+        return 0;
+    }
+    else
+        return GetLastError();
 }
 
 void NativeUnhookAllEvents()
@@ -248,9 +358,9 @@ OSInterfaceError OSErrorToOSInterfaceError(int OSError)
     switch(OSError)
     {
         case 0:
-            return OS_E_SUCCESS;
+            return OSInterfaceError::OS_E_SUCCESS;
         default:
-            return OS_E_UNKOWN;
+            return OSInterfaceError::OS_E_UNKOWN;
     }
 }
 
