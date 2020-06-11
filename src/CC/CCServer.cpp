@@ -29,8 +29,18 @@ void CCServer::SetDiscoverer(INetworkEntityDiscovery* discoverer)
 void CCServer::StartServer()
 {
 	isRunning = true;
-	_internalSocket->Bind();
-	_internalSocket->Listen();
+
+	SocketError error = _internalSocket->Bind();
+	if (error != SocketError::SOCKET_E_SUCCESS)
+	{
+		throw SocketException(error, _internalSocket->lastOSErr);
+	}
+
+	error = _internalSocket->Listen();
+	if (error != SocketError::SOCKET_E_SUCCESS)
+	{
+		throw SocketException(error, _internalSocket->lastOSErr);
+	}
 
 	accpetThread = std::thread(ServerAcceptThread, this);
 }
