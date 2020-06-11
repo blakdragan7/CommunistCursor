@@ -86,18 +86,18 @@ bool CCClient::ListenForOSEvent(OSEvent& newEvent)
 	if (_internalSocket.get() == NULL)
 	{
 		_internalSocket.reset(new Socket(serverAddress, listenPort, false, SocketProtocol::SOCKET_P_UDP));
-		
-		SocketError error = _internalSocket->Bind();
+		SocketError error = _internalSocket->Connect();
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << "Error Trying To Bind To Port "<< listenPort << " : "  << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
+			std::cout << "Error Trying Receive Event Header From Server !: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
+			_internalSocket.reset();
 			return false;
 		}
 	}
 
 	EventPacketHeader eventHeader;
 	size_t received = 0;
-	SocketError error = _internalSocket->RecvFrom((char*)&eventHeader, sizeof(EventPacketHeader), &received);
+	SocketError error = _internalSocket->Recv((char*)&eventHeader, sizeof(EventPacketHeader), &received);
 
 	if (error != SocketError::SOCKET_E_SUCCESS || received != sizeof(EventPacketHeader))
 	{
