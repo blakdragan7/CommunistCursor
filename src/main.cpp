@@ -34,10 +34,6 @@ int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
 
-    std::vector<IPAdressInfo> address;
-
-    OSInterface::SharedInterface().GetIPAddressList(address, {IPAddressType::UNICAST | IPAddressType::MULTICAST, IPAddressFamilly::IPv4});
-
     int res = ParaseArguments(argc,argv);
 
     if(res < 0)
