@@ -17,19 +17,22 @@ extern EnumType operator ~(const EnumType& rh);
 
 enum class IPAddressFamilly
 {
+    NONE = 0,
     IPv4 = 1 << 0,
     IPv6 = 1 << 1,
-    ANY  = 0x255
+    ALL  = 0x255
 };
 
 ADD_ENUMCLASS_BITWISE_OPERATORS(IPAddressFamilly)
 
 enum class IPAddressType
 {
+    NONE        = 0,
     UNICAST     = 1 << 0,
     MULTICAST   = 1 << 1,
     ANYCAST     = 1 << 2,
-    ANY         = 0x255
+    DNSSERVER   = 1 << 3,
+    ALL         = 0x255
 };
 
 ADD_ENUMCLASS_BITWISE_OPERATORS(IPAddressType)
@@ -41,15 +44,15 @@ struct IPAdressInfo
     std::string		    adaptorName;
 
     IPAddressFamilly    addressFamilly;
-    std::bitset<8>	    addressType;
+    IPAddressType	    addressType;
 };
 
 struct IPAdressInfoHints
 {
-    IPAddressType type;
-    IPAddressFamilly familly;
+    IPAddressType       type;
+    IPAddressFamilly    familly;
 
-    IPAdressInfoHints() :type(IPAddressType::ANY), familly(IPAddressFamilly::ANY) {}
+    IPAdressInfoHints() :type(IPAddressType::ALL), familly(IPAddressFamilly::ALL) {}
     IPAdressInfoHints(IPAddressType type, IPAddressFamilly familly):type(type), familly(familly) {}
 };
 
