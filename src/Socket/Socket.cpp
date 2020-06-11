@@ -465,6 +465,11 @@ SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t b
     recv_addr.sin_family = result->ai_family;
     recv_addr.sin_port = htons(port);
     int res = inet_pton(recv_addr.sin_family, address.c_str(), &recv_addr.sin_addr.s_addr);
+    if (res != 1)
+    {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
 
     int received = recvfrom((SOCKET)sfd, buff, (int)buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
 
