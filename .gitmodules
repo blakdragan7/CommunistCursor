@@ -1,3 +1,6 @@
 [submodule "submodules/args"]
 	path = submodules/args
 	url = https://github.com/Taywee/args
+[submodule "submodules/json"]
+	path = submodules/json
+	url = https://github.com/nlohmann/json
