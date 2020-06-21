@@ -5,6 +5,8 @@
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 
+#include <WtsApi32.h>
+
 #include <windows.h>
 #include <functional>
 #include <vector>
@@ -339,6 +341,102 @@ int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfo
     }
 
     if (addresses)free(addresses);
+
+    return 0;
+}
+
+int GetProcessExitCode(int processID, unsigned long* exitCode)
+{
+    HANDLE processHandle = OpenProcess(SYNCHRONIZE, FALSE, processID);
+
+    if (processHandle == INVALID_HANDLE_VALUE)
+    {
+        return GetLastError();
+    }
+
+    if (GetExitCodeProcess(processHandle, (LPDWORD)exitCode) == false)
+    {
+        CloseHandle(processHandle);
+        return GetLastError();
+    }
+
+    CloseHandle(processHandle);
+    return 0;
+}
+
+int GetIsProcessActive(int processID, bool* isActive)
+{
+    HANDLE processHandle = OpenProcess(SYNCHRONIZE, FALSE, processID);
+
+    if (processHandle == INVALID_HANDLE_VALUE)
+    {
+        return GetLastError();
+    }
+
+    DWORD exitCode = 0;
+    if (GetExitCodeProcess(processHandle, &exitCode) == false)
+    {
+        CloseHandle(processHandle);
+        return GetLastError();
+    }
+
+    CloseHandle(processHandle);
+
+    *isActive = (exitCode == STILL_ACTIVE);
+
+    return 0;
+}
+
+int StartProcessAsDesktopUser(std::string process, std::string args, std::string workingDir, bool isVisible, ProccessInfo* processInfo)
+{
+    HANDLE dTop = GetDesktopWindow();
+
+    char* cmd = NULL;
+    if (args.size() > 0)
+    {
+        cmd = new char[args.size() + 10];
+        memset(cmd, 0, args.size() + 10);
+        strcpy(cmd, args.c_str());
+    }
+    
+    STARTUPINFO info;
+    memset(&info, 0, sizeof(info));
+    info.lpDesktop = "winsta0\\default";
+    info.wShowWindow = (short)(isVisible ? SW_SHOW : SW_HIDE);
+    info.cb = sizeof(info);
+
+    PROCESS_INFORMATION pInfo = { 0 };
+
+    unsigned int flags = CREATE_UNICODE_ENVIRONMENT | (unsigned int)(isVisible ? CREATE_NEW_CONSOLE : CREATE_NO_WINDOW);;
+
+    const char* processStr = process.size() > 0 ? process.c_str() : NULL;
+    const char* wrkStr = workingDir.size() > 0 ? workingDir.c_str() : NULL;
+    // we are a desktop user
+
+    if(dTop)
+    {
+        if(CreateProcess(processStr, cmd, NULL, NULL, false, flags, NULL, wrkStr, &info, &pInfo) == false)
+            return GetLastError();
+    }
+    else // we are not a desktop user
+    {
+        HANDLE desktopUser = INVALID_HANDLE_VALUE;
+        if (WTSQueryUserToken(WTSGetActiveConsoleSessionId(), &desktopUser) == false)
+        {
+            return GetLastError();
+        }
+
+        if (CreateProcessAsUser(desktopUser, process.size() > 0 ? process.c_str() : NULL, cmd, NULL, NULL, false, flags, NULL, workingDir.c_str(), &info, &pInfo) == false)
+            return GetLastError();
+
+        CloseHandle(desktopUser);
+    }
+
+    CloseHandle(pInfo.hThread);
+
+    (*processInfo).processID = pInfo.dwProcessId;
+    (*processInfo).nativeHandle = pInfo.hProcess;
+    (*processInfo).processName = process;
 
     return 0;
 }

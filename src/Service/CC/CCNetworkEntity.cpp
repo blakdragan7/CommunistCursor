@@ -65,7 +65,7 @@ SocketError CCNetworkEntity::SendHIDEventPacket(const OSEvent& event)const
     return SocketError::SOCKET_E_NOT_IMPLEMENTED;
 }
 
-CCNetworkEntity::CCNetworkEntity(Socket* socket) : _internalSocket(socket)
+CCNetworkEntity::CCNetworkEntity(std::string entityID, Socket* socket) : entityID(entityID), _internalSocket(socket)
 {}
 
 SocketError CCNetworkEntity::Send(const char* buff, const size_t size)const

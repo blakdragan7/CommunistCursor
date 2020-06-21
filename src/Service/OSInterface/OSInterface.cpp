@@ -120,6 +120,33 @@ OSInterfaceError OSInterface::GetMousePosition(int& xPos, int& yPos)
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
+OSInterfaceError OSInterface::GetProcessExitCode(int processID, unsigned long* exitCode)
+{
+    int ret = ::GetProcessExitCode(processID, exitCode);
+    if (ret != 0)
+        return OSErrorToOSInterfaceError(ret);
+
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
+OSInterfaceError OSInterface::GetIsProcessActive(int processID, bool* isActive)
+{
+    int ret = ::GetIsProcessActive(processID, isActive);
+    if (ret != 0)
+        return OSErrorToOSInterfaceError(ret);
+
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
+OSInterfaceError OSInterface::StartProcessAsDesktopUser(std::string process, std::string args, std::string workingDir, bool isVisible, ProccessInfo* processInfo)
+{
+    int ret = ::StartProcessAsDesktopUser(process, args, workingDir, isVisible, processInfo);
+    if (ret != 0)
+        return OSErrorToOSInterfaceError(ret);
+
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
 void OSInterface::OSMainLoop()
 {
     ::OSMainLoop(shouldRunMainloop);

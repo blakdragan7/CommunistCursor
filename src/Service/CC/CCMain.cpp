@@ -21,6 +21,7 @@
 std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string subnet);
 
 // Info uses tcp 6555
+// gui uses tcp 1049
 // Discovery uses udp 1046
 // OSEvents use udo 1265
 

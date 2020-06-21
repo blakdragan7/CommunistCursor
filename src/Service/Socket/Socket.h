@@ -134,6 +134,7 @@ public:
     inline bool GetIsBradcastable()const { return isBroadcast; }
     inline bool GetCanUseIPV6()const {return _useIPV6;}
     inline const std::string& GetAddress()const { return address; }
+    inline const int GetPort()const { return port; }
 
     /* this must be called before any sockets are created */
     static void OSSocketStartup();

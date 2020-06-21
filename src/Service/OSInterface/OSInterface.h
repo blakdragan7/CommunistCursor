@@ -66,8 +66,31 @@ public:
      *
      * Returns an OSInterfaceError on failure or OS_E_SUCCESS if succesful
      */
-
     OSInterfaceError GetMousePosition(int& xPos, int& yPos);
+    /*
+     *  Gets the exit code for process with id {processID} and stores it in {*exitCode}
+     *
+     *  Returns OSInterfaceError on failure or OS_E_SUCESS if succeful
+     */
+    OSInterfaceError GetProcessExitCode(int processID, unsigned long* exitCode);
+    /*
+     *  Gets if a process with id {processID} is still running and stores it in {*isActive}
+     *
+     *  Returns OSInterfaceError on failure or OS_E_SUCESS if succeful
+     */
+    OSInterfaceError GetIsProcessActive(int processID, bool* isActive);
+    /*
+     * Starts a process as a user with access to the desktop.
+     * This is usually the actively logged in user. 
+     * If more then one is signed in it could be any of them
+     *
+     * {process} is the name of the process (the path to the executable)
+     * {args} is the cmd arguments passed to the program
+     * {workingDir} is the current working dir for the spawned process
+     * {isVisible} is used for flags on wether or not to show the window of the program. This may be ignored by the OS
+     * {processInfo} is information about the spawned process on success or undefined on failure
+     */
+    OSInterfaceError StartProcessAsDesktopUser(std::string process, std::string args, std::string workingDir, bool isVisible, ProccessInfo* processInfo);
 
     /*
      * OSMainLoop is a way to run the native event system of an OS. This should be called in the

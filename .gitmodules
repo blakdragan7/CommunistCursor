@@ -4,3 +4,9 @@
 [submodule "submodules/json"]
 	path = submodules/json
 	url = https://github.com/nlohmann/json
+[submodule "src/Service/submodules/args"]
+	path = src/Service/submodules/args
+	url = https://github.com/Taywee/args
+[submodule "src/Service/submodules/json"]
+	path = src/Service/submodules/json
+	url = https://github.com/nlohmann/json

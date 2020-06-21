@@ -125,6 +125,15 @@ struct OSEvent
     {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.scanCode = -1;}
 };
 
+// Misc Types
+
+struct ProccessInfo
+{
+    int processID;              // the ID of the process
+    void* nativeHandle;         // mainly used in windows
+    std::string processName;    // the name of the process
+};
+
 extern std::ostream& operator<<(std::ostream& os, const OSEvent& event);
 extern std::ostream& operator<<(std::ostream& os, const NativeDisplay& event);
 

@@ -4,6 +4,32 @@
 #include "OSTypes.h"
 #include <list>
 /*
+    returns 0 on success and sets the exit code of the process with id {processID} into
+    {*exitCode}
+
+    returns on OS specific error on failure    
+*/
+extern int GetProcessExitCode(int processID, unsigned long* exitCode);
+/*
+    Checks if process with ID {processID} is running and sets {*isActive} to true if it is or false otherwise
+
+    returns 0 on success or an OS specific error on failure
+*/
+extern int GetIsProcessActive(int processID, bool* isActive);
+/*
+    Starts a process as a user with access to the desktop
+    This is usually the actively logged in user.
+
+    {process} is the name of the process (the path to the executable)
+    {args} is the cmd arguments passed to the program
+    {workingDir} is the current working dir for the spawned process
+    {isVisible} is used for flags on wether or not to show the window of the program. This may be ignored by the OS
+    {processInfo} is information about the spawned process on success or undefined on failure
+
+    Returns 0 on Soccess or a OS specific error on failure
+*/
+extern int StartProcessAsDesktopUser(std::string process, std::string args, std::string workingDir,bool isVisible, ProccessInfo* processInfo);
+/*
     Registers OSInterface osi with key and mouse events on the OS using native methods
     this calles UpdateThread of the osi passed with a generate OSEvent from the native events
     received from the OS

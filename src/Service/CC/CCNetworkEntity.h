@@ -27,6 +27,7 @@ class CCNetworkEntity
 private:
     Socket* _internalSocket;
     std::vector<std::shared_ptr<CCDisplay>> displays;
+    std::string entityID;
 
 private:
     // Some Helper Functions
@@ -35,7 +36,7 @@ private:
     SocketError SendHIDEventPacket(const OSEvent& event)const;
 
 public:
-    CCNetworkEntity(Socket* socket);
+    CCNetworkEntity(std::string entityID, Socket* socket);
 
     // passes buff and size to internal socket. returns a SocketError enum
     SocketError Send(const char* buff, const size_t size)const;
@@ -59,6 +60,8 @@ public:
     // This is currently just used for hardcoding coords for testing
 
     inline std::vector<std::shared_ptr<CCDisplay>> GetAllDisplays()const { return displays; }
+
+    inline const std::string& GetID()const { return entityID; }
 };
 
 #endif
