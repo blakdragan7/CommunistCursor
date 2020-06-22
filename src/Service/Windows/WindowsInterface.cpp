@@ -468,6 +468,32 @@ int NativeRegisterForOSEvents(OSInterface* _osi)
     return GetLastError();
 }
 
+int GetHostName(std::string& hostName)
+{
+    WSADATA wsaData;
+    int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (ret != ERROR_SUCCESS)
+    {
+        return ret;
+    }
+
+    char buff[256] = {0};
+    int len = sizeof(buff);
+
+    ret = gethostname(buff, len);
+
+    if (ret != ERROR_SUCCESS)
+    {
+        return ret;
+    }
+
+    WSACleanup();
+
+    hostName = buff;
+
+    return 0;
+}
+
 int GetMousePosition(int& xPos, int& yPos)
 {
     POINT p;

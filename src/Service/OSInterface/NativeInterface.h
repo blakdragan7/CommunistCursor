@@ -89,6 +89,12 @@ extern int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent);
 */
 extern int GetMousePosition(int& xPos, int& yPos);
 /*
+    Gets the local computer host name and stores it in {hostName}
+
+    Returns OS error or 0 on success
+*/
+extern int GetHostName(std::string& hostName);
+/*
     this tries to convert OSError to an OSInterfaceError.
     
     if there is no equilvelent OSInterfaceError OS_E_UNKOWN is returned 

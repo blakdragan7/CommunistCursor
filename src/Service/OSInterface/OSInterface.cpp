@@ -147,6 +147,15 @@ OSInterfaceError OSInterface::StartProcessAsDesktopUser(std::string process, std
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
+OSInterfaceError OSInterface::GetLocalHostName(std::string& hostName)
+{
+    int ret = GetHostName(hostName);
+    if (ret != 0)
+        return OSErrorToOSInterfaceError(ret);
+    
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
 void OSInterface::OSMainLoop()
 {
     ::OSMainLoop(shouldRunMainloop);

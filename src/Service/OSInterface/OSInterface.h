@@ -93,6 +93,14 @@ public:
     OSInterfaceError StartProcessAsDesktopUser(std::string process, std::string args, std::string workingDir, bool isVisible, ProccessInfo* processInfo);
 
     /*
+     * Retreives host name of computer and stores it in {hostName}
+     *
+     * returns an OSInterfaceError
+     */
+
+    OSInterfaceError GetLocalHostName(std::string &hostName);
+
+    /*
      * OSMainLoop is a way to run the native event system of an OS. This should be called in the
      * same thread as RegisterForOSEvents, if event's want to be received by the user
      */
