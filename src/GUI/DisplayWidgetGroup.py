@@ -1,5 +1,5 @@
 from PySide2.QtWidgets import QWidget, QLabel, QFrame, QVBoxLayout
-from PySide2.QtGui import QColor, QFont
+from PySide2.QtGui import QColor, QFont, QFontMetrics
 from PySide2.QtCore import Qt, QPoint, QRect
 
 from DisplayWidget import DisplayWidget
@@ -57,11 +57,40 @@ class DisplayWidgetGroup(QWidget):
         self.labelFrame.setGeometry(0, 0, self.width(), self.height())
         self.label.setGeometry(0, 0, self.width(), self.height())
 
+        f = QFont("ariel", self.FontSizeForWidth())
+        self.label.setFont(f)
+
         for display in self.displays:
             display.SetWidgetBounds([0,0,self.width(),self.height()])
             display.UpdateGeometry()
 
         return super().resizeEvent(event)
+
+    def FontSizeForWidth(self):
+        text = self.label.text()
+        textSize = len(text)
+        f = self.label.font()
+        metrics = QFontMetrics(f)
+        width = metrics.width(text)
+        myWidth = self.label.width()
+        size = 0
+        if width < myWidth:
+            direction = 1
+        else:
+            direction = -1
+        while(True):
+            f = QFont("Ariel", size + 1)
+            mf = QFontMetrics(f)
+            self.label.setFont(f)
+            width = mf.width(text)
+            if direction > 0:
+                if width >= myWidth:
+                    break
+            else:
+                if width <= myWidth:
+                    break
+            size = f.pointSize() + direction
+        return size
 
     def UpdateGlobalBounds(self, bounds):
         self.globalBounds = bounds.copy()
