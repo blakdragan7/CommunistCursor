@@ -7,7 +7,7 @@
 
 #include <iostream>
 
-CCClient::CCClient(int listenPort) : serverAddress("0.0.0.0"), listenPort(listenPort)
+CCClient::CCClient(int listenPort) : _serverAddress("0.0.0.0"), _listenPort(listenPort)
 {
 	auto error = OSInterface::SharedInterface().GetNativeDisplayList(_displayList);
 	if (error != OSInterfaceError::OS_E_SUCCESS)
@@ -31,11 +31,28 @@ void CCClient::ConnectToServer(std::string address, int port)
 	DisplayListHeaderPacket listHeader;
 	listHeader.NumberOfDisplays = (int)_displayList.size();
 
+	std::string hostName;
+	OSInterfaceError osError = OSInterface::SharedInterface().GetLocalHostName(hostName);
+	if (osError != OSInterfaceError::OS_E_SUCCESS)
+	{
+		std::cout << "Error Trying to get Local Host Name\n";
+		return;
+	}
+
+	EntityIDPacket idPacket(hostName);
+
+	error = servSocket.Send((char*)&idPacket, sizeof(EntityIDPacket));
+	if (error != SocketError::SOCKET_E_SUCCESS)
+	{
+		std::cout << "Error Trying To Send ID Packet To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		return;
+	}
+
 	AddressPacket addPacket;
-	memcpy(addPacket.Address,"DONT USE", 8);
+	memcpy(addPacket.Address, INVALID_PACKET_ADDRESS, INVALID_PACKET_ADDRESS_SIZE);
 	addPacket.Address[8] = 0;
 	// this port will eventually be configurable but for now, random numbers
-	addPacket.Port = listenPort;
+	addPacket.Port = _listenPort;
 
 	error = servSocket.Send((char*)&addPacket, sizeof(AddressPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
@@ -78,14 +95,14 @@ void CCClient::ConnectToServer(std::string address, int port)
 		return;
 	}
 
-	serverAddress = address;
+	_serverAddress = address;
 }
 
 bool CCClient::ListenForOSEvent(OSEvent& newEvent)
 {
 	if (_internalSocket.get() == NULL)
 	{
-		_internalSocket.reset(new Socket(serverAddress, listenPort, false, SocketProtocol::SOCKET_P_UDP));
+		_internalSocket.reset(new Socket(_serverAddress, _listenPort, false, SocketProtocol::SOCKET_P_UDP));
 		SocketError error = _internalSocket->Connect();
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{

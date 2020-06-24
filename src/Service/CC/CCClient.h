@@ -14,8 +14,8 @@ private:
     std::unique_ptr<Socket> _internalSocket;
     std::vector<NativeDisplay> _displayList;
 
-    std::string serverAddress;
-    int listenPort;
+    std::string _serverAddress;
+    int _listenPort;
 
 public:
     CCClient(int listenPort);
@@ -33,6 +33,9 @@ public:
     // Stops the client from listening for events
     // ensures the client is no longer receiving or binding port: listenPort
     void StopClientSocket();
+
+    // Getters
+    inline std::vector<NativeDisplay> GetDisplayList()const { return _displayList; };
 };
 
 #endif

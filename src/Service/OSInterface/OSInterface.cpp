@@ -26,6 +26,24 @@ OSInterfaceError OSInterface::ConvertEventToNativeCoords(const OSEvent inEvent, 
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
+OSInterfaceError OSInterface::SetMousePosition(int posX, int posY)
+{
+    int xPos, yPos;
+    auto error = this->GetMousePosition(xPos,yPos);
+    if (error != OSInterfaceError::OS_E_SUCCESS)
+    {
+        return error;
+    }
+
+    OSEvent mouseEvent;
+    mouseEvent.deltaX = posX - xPos;
+    mouseEvent.deltaY = posY - yPos;
+    mouseEvent.eventType = OS_EVENT_MOUSE;
+    mouseEvent.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
+
+    return SendMouseEvent(mouseEvent);
+}
+
 OSInterfaceError OSInterface::SendMouseEvent(OSEvent mouseEvent)
 {
     if(mouseEvent.eventType != OS_EVENT_MOUSE)

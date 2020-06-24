@@ -3,29 +3,42 @@
 
 #include <vector>
 #include <memory>
+#include <thread>
 
 #include "../OSInterface/IOSEventReceiver.h"
 #include "../OSInterface/OSTypes.h"
 
 #include "INetworkEntityDiscovery.h"
-#include "CCBroadcastManager.h"
-#include "CCServer.h"
-#include "CCClient.h"
+#include "IGuiServiceInterface.h"
+#include "CCGUIService.h"
 
 #include "BasicTypes.h"
 
-class CCMain : public INetworkEntityDiscovery, public IOSEventReceiver
+class CCServer;
+class CCClient;
+class CCNetworkEntity;
+class CCMain : public INetworkEntityDiscovery, public IOSEventReceiver, public IGuiServiceInterface
 {
 private:
-	std::vector<std::shared_ptr<CCNetworkEntity>> entites;
+	std::vector<std::shared_ptr<CCNetworkEntity>> _entites;
 
-	std::unique_ptr<CCServer> server;
-	std::unique_ptr<CCClient> client;
 
-	bool serverShouldRun;
-	bool clientShouldRun;
+	std::shared_ptr<CCNetworkEntity> _localEntity;
 
-	Point currentMousePosition;
+	std::thread					_serverBroadcastThread;
+	std::unique_ptr<CCServer>	_server;
+	std::unique_ptr<CCClient>	_client;
+
+	CCGuiService				_guiService;
+
+	std::vector<int>			_globalBounds;
+	
+	Point						_currentMousePosition;
+	Point						_currentMouseOffsets;
+
+	bool						_serverShouldRun;
+	bool						_clientShouldRun;
+
 
 public:
 	CCMain();
@@ -50,6 +63,14 @@ public:
 	virtual void EntityLost(std::shared_ptr<CCNetworkEntity> entity, NELostReason lostReason)override;
 
 	// End INetworkDiscoery
+
+	// IGuiServiceInterface Implementation
+
+	virtual const std::vector<std::shared_ptr<CCNetworkEntity>>& GetEntitiesToConfigure()const override;
+	virtual const std::vector<int>& GetGlobalBounds()const override;
+	virtual void EntitiesFinishedConfiguration()override;
+
+	// End IGuiServiceInterface
 
 	// IOSEventReceiver Implementation
 

@@ -26,8 +26,19 @@ class CCNetworkEntity
 {
 private:
     Socket* _internalSocket;
-    std::vector<std::shared_ptr<CCDisplay>> displays;
-    std::string entityID;
+    std::vector<std::shared_ptr<CCDisplay>> _displays;
+    std::string _entityID;
+    bool _isLocalEntity;
+
+    Point _offsets;
+    Rect  _totalBounds;
+
+    std::vector<CCNetworkEntity*> _topEntites;
+    std::vector<CCNetworkEntity*> _bottomEntites;
+    std::vector<CCNetworkEntity*> _leftEntites;
+    std::vector<CCNetworkEntity*> _rightEntites;
+
+    static int _jumpBuffer;
 
 private:
     // Some Helper Functions
@@ -36,6 +47,7 @@ private:
     SocketError SendHIDEventPacket(const OSEvent& event)const;
 
 public:
+    CCNetworkEntity(std::string entityID);
     CCNetworkEntity(std::string entityID, Socket* socket);
 
     // passes buff and size to internal socket. returns a SocketError enum
@@ -51,17 +63,26 @@ public:
     // Entity, if not it does nothing 
     void RemoveDisplay(std::shared_ptr<CCDisplay> display);
 
+    // Sets the offsets for all displays in this entity
+    void SetDisplayOffsets(Point offsets);
+
     // this returns the display that this point coincides or NULL if there are none
     const std::shared_ptr <CCDisplay> DisplayForPoint(const Point& point)const;
     // this returns wether or not {p} is within the bounds of any of it's displays
     bool PointIntersectsEntity(const Point& p)const;
 
+    void AddEntityIfInProximity(CCNetworkEntity* entity);
+
     // return a list of all displays accosiated with this entity
     // This is currently just used for hardcoding coords for testing
 
-    inline std::vector<std::shared_ptr<CCDisplay>> GetAllDisplays()const { return displays; }
+    inline std::vector<std::shared_ptr<CCDisplay>> GetAllDisplays()const { return _displays; }
 
-    inline const std::string& GetID()const { return entityID; }
+    CCNetworkEntity* GetEntityForPointInJumpZone(Point p)const;
+
+    inline const std::string& GetID()const { return _entityID; }
+    inline bool GetIsLocal()const {return _isLocalEntity;};
+    inline const Point& GetOffsets()const { return _offsets; }
 };
 
 #endif

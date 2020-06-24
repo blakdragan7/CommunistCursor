@@ -8,7 +8,6 @@
 #include "OSInterface/OSInterface.h"
 #include "OSInterface/NativeInterface.h"
 #include "OSInterface/IOSEventReceiver.h"
-#include "CC/CCGUIService.h"
 #include "OSInterface/OSTypes.h"
 
 #include "CC/CCMain.h"
@@ -36,31 +35,6 @@ int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
 
-    CCGuiService gui(1049);
-
-    std::shared_ptr<CCNetworkEntity> entity = std::make_shared<CCNetworkEntity>("Test", (Socket*)NULL);
-
-    NativeDisplay nDisplay;
-    nDisplay.nativeScreenID = 0;
-    nDisplay.posX = 0;
-    nDisplay.posY = 0;
-    nDisplay.width = 400;
-    nDisplay.height = 400;
-
-    entity->AddDisplay(std::make_shared<CCDisplay>(nDisplay));
-
-    nDisplay.nativeScreenID = 1;
-    nDisplay.posX = 400;
-    nDisplay.posY = 0;
-    nDisplay.width = 400;
-    nDisplay.height = 300;
-
-    entity->AddDisplay(std::make_shared<CCDisplay>(nDisplay));
-
-    std::vector<std::shared_ptr<CCNetworkEntity>> entites = { entity };
-    gui.StartGUIServer(entites, {-800,-800,800,800});
-
-    return 0;
     int res = ParaseArguments(argc,argv);
 
     if(res < 0)

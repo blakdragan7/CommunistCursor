@@ -79,9 +79,23 @@ void ServerAcceptThread(CCServer* server)
 		// but we may use it for the actuall conection address later
 
 		AddressPacket addPacket;
+		EntityIDPacket idPacket;
 		DisplayListHeaderPacket listHeaderPacket;
 
 		size_t received = 0;
+		error = acceptedSocket->Recv((char*)&idPacket, sizeof(EntityIDPacket), &received);
+		if (error != SocketError::SOCKET_E_SUCCESS)
+		{
+			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			continue;
+		}
+
+		if (received != sizeof(EntityIDPacket) || idPacket.MagicNumber != P_MAGIC_NUMBER)
+		{
+			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			continue;
+		}
+		
 		error = acceptedSocket->Recv((char*)&addPacket, sizeof(AddressPacket), &received);
 
 		if (error != SocketError::SOCKET_E_SUCCESS)
@@ -98,7 +112,7 @@ void ServerAcceptThread(CCServer* server)
 
 		// socket is owned by entity as a uniqe_ptr so no delete needed
 		Socket* udpRemoteClientSocket = new Socket(acceptedSocket->GetAddress(), addPacket.Port, acceptedSocket->GetCanUseIPV6(), SocketProtocol::SOCKET_P_UDP);
-		std::shared_ptr<CCNetworkEntity> entity(new CCNetworkEntity("Unkownn", udpRemoteClientSocket));
+		std::shared_ptr<CCNetworkEntity> entity(new CCNetworkEntity(idPacket.EntityID, udpRemoteClientSocket));
 
 		received = 0;
 		error = acceptedSocket->Recv((char*)&listHeaderPacket, sizeof(DisplayListHeaderPacket), &received);

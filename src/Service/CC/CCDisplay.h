@@ -8,11 +8,11 @@ struct NativeDisplay;
 class CCDisplay
 {
 private:
-    NativeDisplay display; // native OS deisplay resolution and offset
-    Rect bounds; // bounds used to collision checking
-    unsigned int assignedID; // used to ID this display, only used server side
+    NativeDisplay   _display;   // native OS deisplay resolution and offset
+    Rect            _bounds;    // bounds used for collision checking
+    unsigned int    _assignedID;// used to ID this display, only used server side
 
-    static unsigned int nextID;
+    static unsigned int _nextID;
 
 public:
     CCDisplay(NativeDisplay display);
@@ -29,11 +29,11 @@ public:
     void SetOffsets(int offsetX, int offsetY);
 
     // Getter for the native display, mainly used for UI
-    const NativeDisplay& GetNativeDisplay()const { return display; }
+    const NativeDisplay& GetNativeDisplay()const { return _display; }
     // Getter for collision bounds
-    const Rect& GetCollision()const { return bounds; }
+    const Rect& GetCollision()const { return _bounds; }
     // Getter fir Assigned ID. Can be used to id displays server side
-    const unsigned int GetAssignedID()const { return assignedID; }
+    const unsigned int GetAssignedID()const { return _assignedID; }
 
 };
 

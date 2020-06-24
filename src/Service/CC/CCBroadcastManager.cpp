@@ -26,7 +26,7 @@ bool CCBroadcastManager::BroadcastNow(std::string serverAddress, int serverPort)
 	addressPacket.Address[serverAddress.length()] = 0;
 	addressPacket.Port = serverPort;
 	
-	std::cout << "Broadcasting Address As {" << addressPacket.Address << "," << addressPacket.Port << "}" << std::endl;
+	//std::cout << "Broadcasting Address As {" << addressPacket.Address << "," << addressPacket.Port << "}" << std::endl;
 	SocketError error = _internalSocket->SendTo(&addressPacket, sizeof(addressPacket));
 
 	if (error != SocketError::SOCKET_E_SUCCESS)

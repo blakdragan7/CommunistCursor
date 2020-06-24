@@ -18,6 +18,8 @@
 #include <chrono>
 #include <thread>
 
+#include <algorithm>
+
 std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string subnet);
 
 // Info uses tcp 6555
@@ -25,23 +27,50 @@ std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string su
 // Discovery uses udp 1046
 // OSEvents use udo 1265
 
-CCMain::CCMain() : server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), client(new CCClient(1047)), 
-clientShouldRun(false), serverShouldRun(false)
+CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)), 
+_clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this)
 {
+	auto displayList = _client->GetDisplayList();
+
+	std::string hostName;
+	OSInterfaceError error = OSInterface::SharedInterface().GetLocalHostName(hostName);
+	if (error != OSInterfaceError::OS_E_SUCCESS)
+	{
+		std::cout << "Error Getting Host Name. Using Default Instead\n";
+		hostName = "Server";
+	}
+
+	// setup this computers entity
+
+	_localEntity = std::make_shared<CCNetworkEntity>(hostName);
+
+	for (auto display : displayList)
+	{
+		_localEntity->AddDisplay(std::make_shared<CCDisplay>(display));
+	}
+
+	this->NewEntityDiscovered(_localEntity);
 }
 
 CCMain::~CCMain()
 {
-	if(serverShouldRun)
+	if(_serverShouldRun)
 		StopServer();
-	if (clientShouldRun)
+	if (_clientShouldRun)
 		StopClient();
 }
 
 void CCMain::StartServerMain()
 {
-	serverShouldRun = true;
-	server->StartServer();
+	_serverShouldRun = true;
+	_server->StartServer();
+
+	std::cout << "Starting Gui Server\n";
+
+	if (_guiService.StartGUIServer() == false)
+	{
+		throw std::exception("Could Not Start Gui Socket Server !");
+	}
 
 	std::vector<IPAdressInfo> ipAddress;
 
@@ -76,10 +105,11 @@ void CCMain::StartServerMain()
 	{
 		std::string broadcastAddress = BroadcastAddressFromIPAndSubnetMask(address.address, address.subnetMask);
 
+		std::cout << "New Broadcase Address: " << broadcastAddress << " on port: " << 1046 << std::endl;
 		broadcasters.push_back(CCBroadcastManager(broadcastAddress, 1046));
 	}
 
-	OSInterfaceError err = OSInterface::SharedInterface().GetMousePosition(currentMousePosition.x, currentMousePosition.y);
+	OSInterfaceError err = OSInterface::SharedInterface().GetMousePosition(_currentMousePosition.x, _currentMousePosition.y);
 	if (err != OSInterfaceError::OS_E_SUCCESS)
 	{
 		std::string exceptionString = "Could not get mouse position from OS with error: ";
@@ -89,46 +119,50 @@ void CCMain::StartServerMain()
 		throw std::exception(exceptionString.c_str());
 	}
 
-	while (serverShouldRun)
-	{
-		// broadcase to every possible network we can.
-		// this will be configurable later
-		for (int i = 0; i < broadcasters.size(); i++)
-		{
-			// If we fail to broadcase we remove it from the list of broadcasters and
-			// break here to wait to start the loop again so we don't cause any
-			// weird issues with looping through a vector while modifying it
-			if (broadcasters[i].BroadcastNow(ipAddress[i].address, 6555) == false)
-			{
-				broadcasters.erase(broadcasters.begin() + i);
-				ipAddress.erase(ipAddress.begin() + i);
-				break;
-			}
-		}
-	
-		std::this_thread::sleep_for(std::chrono::seconds(5));
-	}
 	OSInterface::SharedInterface().RegisterForOSEvents(this);
+	_serverBroadcastThread = std::thread([&]() {
+		while (_serverShouldRun)
+		{
+			// broadcase to every possible network we can.
+			// this will be configurable later
+			for (int i = 0; i < broadcasters.size(); i++)
+			{
+				// If we fail to broadcase we remove it from the list of broadcasters and
+				// break here to wait to start the loop again so we don't cause any
+				// weird issues with looping through a vector while modifying it
+				if (broadcasters[i].BroadcastNow(ipAddress[i].address, 6555) == false)
+				{
+					broadcasters.erase(broadcasters.begin() + i);
+					ipAddress.erase(ipAddress.begin() + i);
+					break;
+				}
+			}
+
+			std::this_thread::sleep_for(std::chrono::seconds(5));
+		}
+	});
+
+	OSInterface::SharedInterface().OSMainLoop();
 }
 
 void CCMain::StartClientMain()
 {
 	CCBroadcastManager broadcastReceiver(SOCKET_ANY_ADDRESS, 1046);
 
-	clientShouldRun = true;
+	_clientShouldRun = true;
 	BServerAddress address;
 	// intentionally blocks because we need to know the server address before we can do anything else
 	while (broadcastReceiver.ListenForBroadcasts(&address) == false);
 
 	std::cout << "Address: " << address.first << " Port: " << address.second << std::endl;
 
-	client->ConnectToServer(address.first, address.second);
+	_client->ConnectToServer(address.first, address.second);
 
 	// receive events from server until told not to
 	OSEvent newEvent;
-	while (clientShouldRun)
+	while (_clientShouldRun)
 	{
-		if (client->ListenForOSEvent(newEvent))
+		if (_client->ListenForOSEvent(newEvent))
 		{
 			if (newEvent.eventType == OS_EVENT_KEY)
 				OSInterface::SharedInterface().SendKeyEvent(newEvent);
@@ -144,20 +178,22 @@ void CCMain::StartClientMain()
 
 void CCMain::StopServer()
 {
-	if (serverShouldRun)
-		server->StopServer();
+	if (_serverShouldRun)
+		_server->StopServer();
 
-	serverShouldRun = false;
+	_serverShouldRun = false;
 
 	OSInterface::SharedInterface().UnRegisterForOSEvents(this);
+
+	_serverBroadcastThread.join();
 }
 
 void CCMain::StopClient()
 {
-	if (clientShouldRun)
-		client->StopClientSocket();
+	if (_clientShouldRun)
+		_client->StopClientSocket();
 
-	clientShouldRun = false;
+	_clientShouldRun = false;
 }
 
 void CCMain::InstallService()
@@ -170,25 +206,69 @@ void CCMain::SetupGlobalPositions()
 {
 	//hardcoded for now
 
-	auto displayList = entites[0]->GetAllDisplays();
+	auto displayList = _entites[0]->GetAllDisplays();
 
-	displayList[0]->SetBounds(Point(2160, 0));
+	int minX = 4000;
+	int minY = 4000;
+	int maxX = 0;
+	int maxY = 0;
+
+	int Buffer = (int)displayList.size() * 1500;
+
+	for (auto display : displayList)
+	{
+		Rect collision = display->GetCollision();
+		minX = std::min(collision.topLeft.x, minX);
+		minY = std::min(collision.topLeft.y, minY);
+		maxX = std::max(collision.bottomRight.x, maxX);
+		maxY = std::max(collision.bottomRight.y, maxY);
+	}
+
+	_globalBounds[0] = minX - Buffer;
+	_globalBounds[1] = minY - Buffer;
+	_globalBounds[2] = maxX + Buffer;
+	_globalBounds[3] = maxY + Buffer;
 }
 
 void CCMain::NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity)
 {
-	std::cout << "New Entity Discovered !\n";
+	std::cout << "New Entity Discovered {" << entity->GetID() << "}" << std::endl;
 
-	entites.push_back(entity);
+	_entites.push_back(entity);
 
 	SetupGlobalPositions();
 }
 
 void CCMain::EntityLost(std::shared_ptr<CCNetworkEntity> entity, NELostReason lostReason)
 {
-	auto itr = std::find(entites.begin(), entites.end(), entity);
-	if (itr != entites.end())
-		entites.erase(itr);
+	auto itr = std::find(_entites.begin(), _entites.end(), entity);
+	if (itr != _entites.end())
+		_entites.erase(itr);
+}
+
+const std::vector<std::shared_ptr<CCNetworkEntity>>& CCMain::GetEntitiesToConfigure() const
+{
+	return _entites;
+}
+
+const std::vector<int>& CCMain::GetGlobalBounds() const
+{
+	return _globalBounds;
+}
+
+void CCMain::EntitiesFinishedConfiguration()
+{
+	_currentMouseOffsets = _localEntity->GetOffsets();
+
+	for (int i = 0; i < _entites.size(); i++)
+	{
+		auto entity = _entites[i];
+
+		for (int l = i + 1; l < _entites.size(); l++)
+		{
+			entity->AddEntityIfInProximity(_entites[l].get());
+		}
+	}
 }
 
 bool CCMain::ReceivedNewInputEvent(const OSEvent event)
@@ -197,17 +277,33 @@ bool CCMain::ReceivedNewInputEvent(const OSEvent event)
 	{
 		if (event.subEvent.mouseEvent == MOUSE_EVENT_MOVE)
 		{
-			currentMousePosition.x += event.deltaX;
-			currentMousePosition.y += event.deltaY;
+			_currentMousePosition.x += event.deltaX;
+			_currentMousePosition.y += event.deltaY;
 
-			for (auto entity : entites)
+			//std::cout << "New Mouse Pos {" << _currentMousePosition.x << "," << _currentMousePosition.y << "}\n";
+		}
+	}
+
+	for (auto entity : _entites)
+	{
+		Point OffsetPos;
+		
+		OffsetPos.x = _currentMousePosition.x + _currentMouseOffsets.x;
+		OffsetPos.y = _currentMousePosition.y + _currentMouseOffsets.y;
+
+		if (entity->PointIntersectsEntity(OffsetPos))
+		{
+			auto nextEntity = entity->GetEntityForPointInJumpZone(OffsetPos);
+			if (nextEntity)
 			{
-				if (entity->PointIntersectsEntity(currentMousePosition))
-				{
-					entity->SendOSEvent(event);
-					return true;
-				}
+				// we have a jump zone
+				std::cout << "Jump !!\n";
 			}
+
+			if (entity->GetIsLocal()) return false;
+
+			entity->SendOSEvent(event);
+			return true;
 		}
 	}
 

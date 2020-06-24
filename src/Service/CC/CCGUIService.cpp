@@ -12,7 +12,6 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
-#include <future>
 
 #include <algorithm>
 
@@ -35,7 +34,7 @@ void CCGuiService::SocketAcceptThread()
 			else break;
 		}
 	
-		std::async([acceptedSocket, this]() {
+		auto workerThread = std::thread([acceptedSocket, this]() {
 			using namespace nlohmann;
 
 			json entites;
@@ -75,7 +74,7 @@ void CCGuiService::SocketAcceptThread()
 			if (error != SocketError::SOCKET_E_SUCCESS)
 			{
 				std::cout << "Error sending json packet " << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
-				return false;
+				return;
 			}
 
 			char buff[1024] = { 0 };
@@ -84,14 +83,14 @@ void CCGuiService::SocketAcceptThread()
 			if (error != SocketError::SOCKET_E_SUCCESS)
 			{
 				std::cout << "Error receiving json packet " << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
-				return false;
+				return;
 			}
 
 			// app was closed before we finished
 			if (received == 0)
 			{
 				// clearly we don't want to confiure to we just return success
-				return true;
+				return;
 			}
 
 			json offsets = json::parse(buff);
@@ -102,18 +101,16 @@ void CCGuiService::SocketAcceptThread()
 				if (itr != offsets.end())
 				{
 					auto offset = itr.value();
-					auto displays = entity->GetAllDisplays();
-
-					for (int i = 0; i < displays.size(); i++)
-					{
-						auto display = displays[i];
-						display->SetOffsets(offset[0], offset[1]);
-					}
+					entity->SetDisplayOffsets({ offset[0],offset[1] });
 				}
 			}
 
 			delete acceptedSocket;
+
+			_delegate->EntitiesFinishedConfiguration();
 		});
+
+		workerThread.detach();
 	}
 }
 
@@ -138,6 +135,8 @@ bool CCGuiService::StartGUIServer()
 		std::cout << "Error trying listen on GUI Port " << _serverSocket->GetPort() << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
 		return false;
 	}
+
+	_shouldRunServer = true;
 
 	_serverSocketThread = std::thread(&CCGuiService::SocketAcceptThread, this);
 

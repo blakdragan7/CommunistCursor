@@ -3,6 +3,9 @@
 
 #define P_MAGIC_NUMBER 48884003
 
+#define INVALID_PACKET_ADDRESS "DONT USE"
+#define INVALID_PACKET_ADDRESS_SIZE 8
+
 // Magic Numbers are used to ensure entegrety of Packets
 
 /*
@@ -18,6 +21,21 @@ struct AddressPacket
 
 	AddressPacket() : MagicNumber(P_MAGIC_NUMBER), Address("invalid"), Port(0)
 	{}
+};
+
+/*
+ * EntityIDPacket is a packet to receive the ID of the computer connecting to the server
+ * The EntityID is generally the host name of the computer
+ * Note: if the EntityID is greater then 256 bytes it will be truncated 
+ */
+
+struct EntityIDPacket
+{
+	unsigned int MagicNumber;
+	size_t IDLength;
+	char EntityID[256];
+	EntityIDPacket() : MagicNumber(P_MAGIC_NUMBER), IDLength(0) {}
+	EntityIDPacket(std::string id) : MagicNumber(P_MAGIC_NUMBER), IDLength(id.size()) { memset(EntityID,0,256); strcpy_s(EntityID, id.c_str()); }
 };
 
 /*
