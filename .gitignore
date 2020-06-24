@@ -34,6 +34,9 @@
 #Build DIR
 build/
 
+#Python
+__pycache__/
+
 #Cmake
 
 CMakeLists.txt.user
