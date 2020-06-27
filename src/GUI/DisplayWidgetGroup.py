@@ -14,6 +14,7 @@ class DisplayWidgetGroup(QWidget):
         super().__init__(parent)
         self.displays = []
         self.groupID = id
+        self.displayArea = parent
 
         self.minX = 1000000
         self.minY = 1000000
@@ -130,10 +131,20 @@ class DisplayWidgetGroup(QWidget):
 
         return [posX, posY]
 
+    def CollidesWith(self, widget):
+        bounds = [self.x(),  self.y(), self.x() + self.width(), self.y() + self.height()]
+        other = [widget.x(),  widget.y(), widget.x() + widget.width(), widget.y() + widget.height()]
+
+        return not (other[0] > bounds[2] or other[2] < bounds[0] or\
+            other[1] > bounds[3] or other[3] < bounds[1])
+
     def mouseMoveEvent(self, event):
         if self.oldPos:
             deltaPos = (event.globalPos() - self.oldPos)
             self.move(self.x() + deltaPos.x(), self.y() + deltaPos.y())
+            if self.displayArea.CheckCollision(self):
+                self.move(self.x() - deltaPos.x(), self.y() - deltaPos.y())
+
         self.oldPos = event.globalPos()
         return super().mouseMoveEvent(event)
 
