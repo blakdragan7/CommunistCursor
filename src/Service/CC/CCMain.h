@@ -9,6 +9,7 @@
 #include "../OSInterface/OSTypes.h"
 
 #include "INetworkEntityDiscovery.h"
+#include "CCConfigurationManager.h"
 #include "IGuiServiceInterface.h"
 #include "CCGUIService.h"
 
@@ -24,6 +25,7 @@ private:
 
 
 	std::shared_ptr<CCNetworkEntity> _localEntity;
+	CCNetworkEntity*				 _currentEntity;
 
 	std::thread					_serverBroadcastThread;
 	std::unique_ptr<CCServer>	_server;
@@ -39,6 +41,11 @@ private:
 	bool						_serverShouldRun;
 	bool						_clientShouldRun;
 
+	std::string					_configFile;
+	CCConfigurationManager		_configManager;
+
+private:
+	void SetupEntityConnections();
 
 public:
 	CCMain();
@@ -50,6 +57,9 @@ public:
 	void StopServer();
 	void StopClient();
 	void InstallService();
+
+	void LoadAll(std::string path = "");
+	void SaveAll(std::string path = "");
 
 	// Sets up Global Position for network entites
 	// Global positions refer to the global mouse space

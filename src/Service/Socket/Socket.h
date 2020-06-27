@@ -119,7 +119,9 @@ public:
     // to wait for the server to finish using the socket, really only matters for tcp sockets
     SocketError WaitForServer();
     // closes the socket by calling closesocket or simliar function from OS
-    SocketError Close();
+    // if {reCreate} is true, the socket will be created again in a way 
+    // that allows the socket to be used again
+    SocketError Close(bool reCreate = false);
 
     // Setters
 

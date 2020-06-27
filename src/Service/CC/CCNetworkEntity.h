@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <thread>
 
 /*
 *
@@ -21,15 +22,31 @@ struct OSEvent;
 
 class Socket;
 class CCDisplay;
+class CCConfigurationManager;
+
+enum class RPCType : int
+{
+    RPC_StartWarpingMouse,
+    RPC_StopWarpingMouse,
+    RPC_HideMouse,
+    RPC_UnhideMouse
+};
 
 class CCNetworkEntity
 {
 private:
-    Socket* _internalSocket;
+    std::unique_ptr<Socket> _udpCommSocket;
+    std::unique_ptr<Socket> _tcpCommSocket; // is a server on local entities and a client for remote
     std::vector<std::shared_ptr<CCDisplay>> _displays;
     std::string _entityID;
     bool _isLocalEntity;
 
+    // only used client side
+    std::thread _tcpCommThread;
+    bool _shouldBeRunningCommThread;
+
+    // only used server side
+    
     Point _offsets;
     Rect  _totalBounds;
 
@@ -45,6 +62,7 @@ private:
     SocketError SendKeyEventPacket(const OSEvent& event)const;
     SocketError SendMouseEventPacket(const OSEvent& event)const;
     SocketError SendHIDEventPacket(const OSEvent& event)const;
+    SocketError SendRCPOfType(RPCType rpcType)const;
 
 public:
     CCNetworkEntity(std::string entityID);
@@ -70,19 +88,39 @@ public:
     const std::shared_ptr <CCDisplay> DisplayForPoint(const Point& point)const;
     // this returns wether or not {p} is within the bounds of any of it's displays
     bool PointIntersectsEntity(const Point& p)const;
-
+    // Adds this entity as a connected entity if close enough
     void AddEntityIfInProximity(CCNetworkEntity* entity);
+    // clears out all connected entities
+    void ClearAllEntities();
+
+    void LoadFrom(const CCConfigurationManager& manager);
+    void SaveTo(CCConfigurationManager& manager)const;
+
+    // RPC Functions
+
+    void RPC_StartWarpingMouse();
+    void RPC_StopWarpingMouse();
+    void RPC_HideMouse();
+    void RPC_UnhideMouse();
+
+    // Client Functions
+
+    void TCPCommThread();
 
     // return a list of all displays accosiated with this entity
     // This is currently just used for hardcoding coords for testing
 
     inline std::vector<std::shared_ptr<CCDisplay>> GetAllDisplays()const { return _displays; }
 
-    CCNetworkEntity* GetEntityForPointInJumpZone(Point p)const;
+    // This tests point {p} against the edges of this entities displays and connected entities
+    // if a collision if found that collided entity is returned
+    // {p} is modified by reference to account for "jump" zones 
+    CCNetworkEntity* GetEntityForPointInJumpZone(Point& p)const;
 
     inline const std::string& GetID()const { return _entityID; }
     inline bool GetIsLocal()const {return _isLocalEntity;};
     inline const Point& GetOffsets()const { return _offsets; }
+    inline const Rect& GetBounds()const { return _totalBounds; }
 };
 
 #endif

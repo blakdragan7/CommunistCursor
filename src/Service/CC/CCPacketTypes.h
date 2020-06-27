@@ -68,4 +68,15 @@ struct DisplayListDisplayPacket
 	{}
 };
 
+// RPC Packet
+
+struct NetworkEntityRPCPacket
+{
+	unsigned int MagicNumber;
+	unsigned char RPCType;
+
+	NetworkEntityRPCPacket() : MagicNumber(P_MAGIC_NUMBER), RPCType(0) {}
+	NetworkEntityRPCPacket(unsigned char RPCType) : MagicNumber(P_MAGIC_NUMBER), RPCType(RPCType) {}
+};
+
 #endif

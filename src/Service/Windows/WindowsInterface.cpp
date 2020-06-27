@@ -19,6 +19,7 @@ HHOOK mouseHook=0, keyboardHook=0;
 
 POINT lastMousePoint = {0};
 
+
 LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM lParam)
 {
     if (nCode == HC_ACTION)
@@ -515,6 +516,12 @@ void NativeUnhookAllEvents()
 
     mouseHook = 0;
     keyboardHook = 0;
+}
+
+int SetMouseHidden(bool isHidden)
+{
+    // right now does nothing
+    return 0;
 }
 
 extern int SendMouseEvent(const OSEvent mouseEvent)

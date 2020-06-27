@@ -511,7 +511,7 @@ SocketError Socket::WaitForServer()
     return SocketError::SOCKET_E_SUCCESS;
 }
 
-SocketError Socket::Close()
+SocketError Socket::Close(bool reCreate)
 {
     int iResult = closesocket((SOCKET)sfd);
     if (iResult == SOCKET_ERROR) {
@@ -521,6 +521,16 @@ SocketError Socket::Close()
 
     sfd = (NativeSocketHandle)INVALID_SOCKET;
     
+    if (reCreate)
+    {
+        SocketError err = MakeSocket();
+        if (err != SocketError::SOCKET_E_SUCCESS)
+        {
+            return err;
+        }
+
+        return SetIsBroadcastable(isBroadcast);
+    }
 
     return SocketError::SOCKET_E_SUCCESS;
 }

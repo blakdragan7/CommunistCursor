@@ -13,6 +13,7 @@
 #include "CC/CCMain.h"
 #include "CC/CCDisplay.h"
 #include "CC/CCNetworkEntity.h"
+#include "CC/CCConfigurationManager.h"
 
 class TestEventReceiver : public IOSEventReceiver
 {
@@ -34,7 +35,7 @@ bool shouldPause = false;
 int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
-
+    
     int res = ParaseArguments(argc,argv);
 
     if(res < 0)
@@ -42,6 +43,7 @@ int main(int argc, char* argv[])
         std::cout << "Starting Communist Cursor\n";
 
         CCMain main;
+        main.LoadAll();
 
         if (res == -1)
         {

@@ -26,6 +26,14 @@ OSInterfaceError OSInterface::ConvertEventToNativeCoords(const OSEvent inEvent, 
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
+OSInterfaceError OSInterface::SetMouseHidden(bool hideMouse)
+{
+    int OSError = ::SetMouseHidden(hideMouse);
+    if (OSError != 0)
+        return OSErrorToOSInterfaceError(OSError);
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
 OSInterfaceError OSInterface::SetMousePosition(int posX, int posY)
 {
     int xPos, yPos;

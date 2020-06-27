@@ -67,14 +67,15 @@ void ServerAcceptThread(CCServer* server)
 		Socket* newSocket = 0;
 		SocketError error = server->_internalSocket->Accept(&newSocket);
 
-		// me being lazy about memory collection
-		std::unique_ptr<Socket> acceptedSocket(newSocket);
-
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Error accepting new client Socket " << SOCK_ERR_STR(server->_internalSocket.get(), error) << std::endl;
 			continue;
 		}
+
+		// me being lazy about memory management
+		std::unique_ptr<Socket> acceptedSocket(newSocket);
+
 		// AddressPacket is currently just used here to get the desired port
 		// but we may use it for the actuall conection address later
 
@@ -86,13 +87,13 @@ void ServerAcceptThread(CCServer* server)
 		error = acceptedSocket->Recv((char*)&idPacket, sizeof(EntityIDPacket), &received);
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Error Receiving EntityIDPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
 		if (received != sizeof(EntityIDPacket) || idPacket.MagicNumber != P_MAGIC_NUMBER)
 		{
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Invalid EntityIDPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 		
@@ -100,13 +101,13 @@ void ServerAcceptThread(CCServer* server)
 
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Error Receiving AddressPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
 		if (received != sizeof(AddressPacket) || addPacket.MagicNumber != P_MAGIC_NUMBER)
 		{
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Invalid AddressPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
@@ -119,13 +120,13 @@ void ServerAcceptThread(CCServer* server)
 
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Error Receiving DisplayListHeaderPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
 		if (received != sizeof(DisplayListHeaderPacket) || listHeaderPacket.MagicNumber != P_MAGIC_NUMBER)
 		{
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Invalid DisplayListHeaderPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
@@ -144,14 +145,14 @@ void ServerAcceptThread(CCServer* server)
 
 			if (error != SocketError::SOCKET_E_SUCCESS)
 			{
-				std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+				std::cout << "Error Receiving DisplayListPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 				failed = true;
 				break;
 			}
 
 			if (received != sizeof(DisplayListDisplayPacket) || displayPacket.MagicNumber != P_MAGIC_NUMBER)
 			{
-				std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+				std::cout << "Invalid DisplayListDisplayPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 				failed = true;
 				break;
 			}
@@ -178,7 +179,7 @@ void ServerAcceptThread(CCServer* server)
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
 			// very strange if we hit here.
-			std::cout << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			std::cout << "Error Closing Accepted Socket: " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 		}
 	}
 }

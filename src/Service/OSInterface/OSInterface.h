@@ -32,6 +32,12 @@ public:
      */
     OSInterfaceError ConvertEventToNativeCoords(const OSEvent inEvent, OSEvent& outEvent);
     /*
+     * Hides the mouse if {hideMouse} is true or unhides the mouse
+     *
+     * returns an error or OS_E_SUCCESS
+     */
+    OSInterfaceError SetMouseHidden(bool hideMouse);
+    /*
      * Sets mouse position to {posX, posY}
      *
      * This is different from SendMouseEvent because OSEvents always work in deltas and this a position to set not a delta

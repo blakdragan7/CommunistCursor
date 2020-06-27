@@ -20,6 +20,12 @@
 
 #include <algorithm>
 
+template<typename t>
+bool operator==(std::shared_ptr<t> lh, t* rh)
+{
+	return lh.get() == rh;
+}
+
 std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string subnet);
 
 // Info uses tcp 6555
@@ -27,8 +33,28 @@ std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string su
 // Discovery uses udp 1046
 // OSEvents use udo 1265
 
-CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)), 
-_clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this)
+void CCMain::SetupEntityConnections()
+{
+	// clear everybody before reassigning
+
+	for (auto entity : _entites)
+	{
+		entity->ClearAllEntities();
+	}
+
+	for (int i = 0; i < _entites.size(); i++)
+	{
+		auto entity = _entites[i];
+
+		for (int l = i + 1; l < _entites.size(); l++)
+		{
+			entity->AddEntityIfInProximity(_entites[l].get());
+		}
+	}
+}
+
+CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)),
+_clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this), _configFile("cc.json")
 {
 	auto displayList = _client->GetDisplayList();
 
@@ -43,6 +69,7 @@ _clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _gui
 	// setup this computers entity
 
 	_localEntity = std::make_shared<CCNetworkEntity>(hostName);
+	_currentEntity = _localEntity.get();
 
 	for (auto display : displayList)
 	{
@@ -157,23 +184,27 @@ void CCMain::StartClientMain()
 	std::cout << "Address: " << address.first << " Port: " << address.second << std::endl;
 
 	_client->ConnectToServer(address.first, address.second);
-
-	// receive events from server until told not to
-	OSEvent newEvent;
-	while (_clientShouldRun)
-	{
-		if (_client->ListenForOSEvent(newEvent))
+	// spawn a thread for listening for events
+	std::thread clientThread([&]() {
+		// receive events from server until told not to
+		OSEvent newEvent;
+		while (_clientShouldRun)
 		{
-			if (newEvent.eventType == OS_EVENT_KEY)
-				OSInterface::SharedInterface().SendKeyEvent(newEvent);
-			else if (newEvent.eventType == OS_EVENT_MOUSE)
-				OSInterface::SharedInterface().SendMouseEvent(newEvent);
-			else
-				std::cout << "Received Invalid Event From Server: " << newEvent << std::endl;
-		}
+			if (_client->ListenForOSEvent(newEvent))
+			{
+				if (newEvent.eventType == OS_EVENT_KEY)
+					OSInterface::SharedInterface().SendKeyEvent(newEvent);
+				else if (newEvent.eventType == OS_EVENT_MOUSE)
+					OSInterface::SharedInterface().SendMouseEvent(newEvent);
+				else
+					std::cout << "Received Invalid Event From Server: " << newEvent << std::endl;
+			}
 
-		// loop until told not to
-	}
+			// loop until told not to
+		}
+	});
+
+	OSInterface::SharedInterface().OSMainLoop();
 }
 
 void CCMain::StopServer()
@@ -200,6 +231,48 @@ void CCMain::InstallService()
 {
 	// does nothing for now
 	// eventually will install this as a platform dependent service
+}
+
+void CCMain::LoadAll(std::string path)
+{
+	if (path == "")
+	{
+		path = _configFile;
+	}
+	else
+	{
+		_configFile = path;
+	}
+
+	if (_configManager.LoadFromFile(path))
+	{
+		for (auto entity : _entites)
+		{
+			entity->LoadFrom(_configManager);
+		}
+	}
+	else
+	{
+		std::cout << "Error loading from file " << path << std::endl;
+	}
+}
+
+void CCMain::SaveAll(std::string path)
+{
+	if (path == "")
+	{
+		path = _configFile;
+	}
+
+	for (auto entity : _entites)
+	{
+		entity->SaveTo(_configManager);
+	}
+
+	if (!_configManager.SaveToFile(path))
+	{
+		std::cout << "Error Saving to file " << path << std::endl;
+	}
 }
 
 void CCMain::SetupGlobalPositions()
@@ -234,16 +307,22 @@ void CCMain::NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity)
 {
 	std::cout << "New Entity Discovered {" << entity->GetID() << "}" << std::endl;
 
+	entity->LoadFrom(_configManager);
 	_entites.push_back(entity);
 
 	SetupGlobalPositions();
+	SetupEntityConnections();
 }
 
 void CCMain::EntityLost(std::shared_ptr<CCNetworkEntity> entity, NELostReason lostReason)
 {
+	entity->ClearAllEntities();
+
 	auto itr = std::find(_entites.begin(), _entites.end(), entity);
 	if (itr != _entites.end())
 		_entites.erase(itr);
+
+	SetupEntityConnections();
 }
 
 const std::vector<std::shared_ptr<CCNetworkEntity>>& CCMain::GetEntitiesToConfigure() const
@@ -260,15 +339,9 @@ void CCMain::EntitiesFinishedConfiguration()
 {
 	_currentMouseOffsets = _localEntity->GetOffsets();
 
-	for (int i = 0; i < _entites.size(); i++)
-	{
-		auto entity = _entites[i];
+	SetupEntityConnections();
 
-		for (int l = i + 1; l < _entites.size(); l++)
-		{
-			entity->AddEntityIfInProximity(_entites[l].get());
-		}
-	}
+	SaveAll();
 }
 
 bool CCMain::ReceivedNewInputEvent(const OSEvent event)
@@ -279,35 +352,48 @@ bool CCMain::ReceivedNewInputEvent(const OSEvent event)
 		{
 			_currentMousePosition.x += event.deltaX;
 			_currentMousePosition.y += event.deltaY;
-
-			//std::cout << "New Mouse Pos {" << _currentMousePosition.x << "," << _currentMousePosition.y << "}\n";
 		}
 	}
 
-	for (auto entity : _entites)
+	Point OffsetPos;
+
+	OffsetPos = _currentMousePosition + _currentMouseOffsets;
+
+	Rect Bounds = _currentEntity->GetBounds();
+
+	auto nextEntity = _currentEntity->GetEntityForPointInJumpZone(OffsetPos);
+	if (nextEntity)
 	{
-		Point OffsetPos;
-		
-		OffsetPos.x = _currentMousePosition.x + _currentMouseOffsets.x;
-		OffsetPos.y = _currentMousePosition.y + _currentMouseOffsets.y;
+		_currentMousePosition = OffsetPos - _currentMouseOffsets;
 
-		if (entity->PointIntersectsEntity(OffsetPos))
-		{
-			auto nextEntity = entity->GetEntityForPointInJumpZone(OffsetPos);
-			if (nextEntity)
-			{
-				// we have a jump zone
-				std::cout << "Jump !!\n";
-			}
+		// we have a jump zone
+		std::cout << "Jump To " << nextEntity->GetID() << std::endl;
+				
+		// hide mouse
+		std::cout << "Hide Mouse Current" << std::endl;
+		_currentEntity->RPC_HideMouse();
+					
+		// Force mouse to be in center of screen
+		std::cout << "Start Warp Current" << std::endl;
+		_currentEntity->RPC_StartWarpingMouse();
 
-			if (entity->GetIsLocal()) return false;
+		// unhide mouse of last entity
+		std::cout << "Unhide Mouse Next" << std::endl;
+		nextEntity->RPC_UnhideMouse();
 
-			entity->SendOSEvent(event);
-			return true;
-		}
+		// stop forcing entity mouse to center
+		std::cout << "Stop Warping Next" << std::endl;
+		nextEntity->RPC_StopWarpingMouse();
+
+		_currentEntity = nextEntity;
+				
 	}
 
-	return false;
+	if (_currentEntity->GetIsLocal()) return false;
+
+	_currentEntity->SendOSEvent(event);
+
+	return false; // normally true
 }
 
 // move these somewhere else later

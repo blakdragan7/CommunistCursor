@@ -46,9 +46,15 @@ extern void OSMainLoop(bool& shouldRun);
 */
 extern void NativeUnhookAllEvents();
 /*
+    Hides the mouse if {isHidden} is true of unhides the mouse otherwise
+
+    return 0 on success or native error if fails
+*/
+extern int SetMouseHidden(bool isHidden);
+/*
     Injects a Mouse Event using Native OS APIs
 
-    this will return 0 if completed succesfully or a native error if it failes 
+    this will return 0 if completed succesfully or a native error if it failes
 */
 extern int SendMouseEvent(const OSEvent mouseEvent);
 /*
