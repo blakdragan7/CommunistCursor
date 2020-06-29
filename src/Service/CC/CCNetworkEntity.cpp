@@ -97,7 +97,7 @@ SocketError CCNetworkEntity::SendHIDEventPacket(const OSEvent& event)const
     return SocketError::SOCKET_E_NOT_IMPLEMENTED;
 }
 
-SocketError CCNetworkEntity::SendRCPOfType(RPCType rpcType) const
+SocketError CCNetworkEntity::SendRPCOfType(RPCType rpcType, void* data, size_t dataSize) const
 {
     if (_isLocalEntity)
         return SocketError::SOCKET_E_UNKOWN;
@@ -107,25 +107,82 @@ SocketError CCNetworkEntity::SendRCPOfType(RPCType rpcType) const
     SocketError error = _tcpCommSocket->Send(&packet, sizeof(packet));
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
-        if (error == SocketError::SOCKET_E_NOT_CONNECTED)
+        if (ShouldRetryRPC(error))
         {
-            SocketError error = _tcpCommSocket->Connect();
-            if (error != SocketError::SOCKET_E_SUCCESS)
-            {
-                return error;
-            } 
-
-            return SendRCPOfType(rpcType);
-        }
-        else if (error == SocketError::SOCKET_E_BROKEN_PIPE)
-        {
-            _tcpCommSocket->Close(true);
-            return SendRCPOfType(rpcType);
+            return SendRPCOfType(rpcType, data, dataSize);
         }
         else return error;
     }
 
+    NetworkEntityRPCAwk awk;
+    size_t received;
+    error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+    if (error != SocketError::SOCKET_E_SUCCESS)
+    {
+        if (ShouldRetryRPC(error))
+        {
+            return SendRPCOfType(rpcType, data, dataSize);
+        }
+        else return error;
+    }
+
+    if (awk.MagicNumber != P_MAGIC_NUMBER)
+    {
+        std::cout << "Received Invalid Awk for RPC !" << std::endl;
+        return SocketError::SOCKET_E_UNKOWN;
+    }
+
+    if (data && dataSize != 0)
+    {
+        error = _tcpCommSocket->Send(data, dataSize);
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            if (ShouldRetryRPC(error))
+            {
+                return SendRPCOfType(rpcType, data, dataSize);
+            }
+            else return error;
+        }
+
+        NetworkEntityRPCAwk awk;
+        size_t received;
+        error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            if (ShouldRetryRPC(error))
+            {
+                return SendRPCOfType(rpcType, data, dataSize);
+            }
+            else return error;
+        }
+    }
+
     return SocketError::SOCKET_E_SUCCESS;
+}
+
+bool CCNetworkEntity::ShouldRetryRPC(SocketError error) const
+{
+    if (error == SocketError::SOCKET_E_NOT_CONNECTED)
+    {
+        SocketError error = _tcpCommSocket->Connect(); 
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            return false; 
+        }
+        return true;
+    }
+    else if (error == SocketError::SOCKET_E_BROKEN_PIPE)\
+    {
+        _tcpCommSocket->Close(true); 
+        return true; 
+    }
+    else return false;
+}
+
+SocketError CCNetworkEntity::SendRPCAwk(Socket* socket) const
+{
+    NetworkEntityRPCAwk awk;
+    return socket->Send(&awk, sizeof(awk));
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID) : _entityID(entityID), _isLocalEntity(true), _shouldBeRunningCommThread(true)
@@ -302,36 +359,23 @@ void CCNetworkEntity::SaveTo(CCConfigurationManager& manager) const
     manager.SetValue({ "Entities", _entityID }, _offsets);
 }
 
-void CCNetworkEntity::RPC_StartWarpingMouse()
+void CCNetworkEntity::RPC_SetMousePosition(float xPercent, float yPercent)
 {
     if (_isLocalEntity)
     {
         // warp mouse
-        OSInterface::SharedInterface().SetMousePosition(400, 600);
+        int x = _totalBounds.topLeft.x + (int)((_totalBounds.bottomRight.x - _totalBounds.topLeft.x) * xPercent);
+        int y = _totalBounds.topLeft.y + (int)((_totalBounds.bottomRight.y - _totalBounds.topLeft.y) * yPercent);
+        std::cout << "RPC_SetMousePosition {" << x << "," << y << "}" << std::endl;
+        OSInterface::SharedInterface().SetMousePosition(x, y);
     }
     else
     {
-        SocketError error = SendRCPOfType(RPCType::RPC_StartWarpingMouse);
+        NetworkEntityRPCSetMouseData data(xPercent, yPercent);
+        SocketError error = SendRPCOfType(RPCType::RPC_SetMousePosition, &data, sizeof(data));
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             std::cout << "Could not perform RPC_StartWarpingMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
-        }
-    }
-}
-
-void CCNetworkEntity::RPC_StopWarpingMouse()
-{
-    if (_isLocalEntity)
-    {
-        // stop warp mouse
-        OSInterface::SharedInterface().SetMousePosition(400,600);
-    }
-    else
-    {
-        SocketError error = SendRCPOfType(RPCType::RPC_StopWarpingMouse);
-        if (error != SocketError::SOCKET_E_SUCCESS)
-        {
-            std::cout << "Could not perform RPC_StopWarpingMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
         }
     }
 }
@@ -345,7 +389,7 @@ void CCNetworkEntity::RPC_HideMouse()
     }
     else
     {
-        SocketError error = SendRCPOfType(RPCType::RPC_HideMouse);
+        SocketError error = SendRPCOfType(RPCType::RPC_HideMouse);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             std::cout << "Could not perform RPC_HideMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
@@ -362,7 +406,7 @@ void CCNetworkEntity::RPC_UnhideMouse()
     }
     else
     {
-        SocketError error = SendRCPOfType(RPCType::RPC_UnhideMouse);
+        SocketError error = SendRPCOfType(RPCType::RPC_UnhideMouse);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             std::cout << "Could not perform RPC!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
@@ -393,45 +437,65 @@ void CCNetworkEntity::TCPCommThread()
             std::cout << "Error accepting server connection: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
             continue;
         }
-
-        NetworkEntityRPCPacket packet;
-        size_t received = 0;
-        error = server->Recv((char*)&packet, sizeof(packet), &received);
-        if (error != SocketError::SOCKET_E_SUCCESS)
+        // we don't spawn a thread here because there should only ever be one server giving RPC commands
+        while (server->GetIsConnected())
         {
-            std::cout << "Error receiving RPC Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
-        }
-        else
-        {
-            if (received == sizeof(packet) && packet.MagicNumber == P_MAGIC_NUMBER)
+            NetworkEntityRPCPacket packet;
+            size_t received = 0;
+            error = server->Recv((char*)&packet, sizeof(packet), &received);
+            if (error != SocketError::SOCKET_E_SUCCESS)
             {
-                std::cout << "Received RPC ";
-                switch ((RPCType)packet.RPCType)
-                {
-                case RPCType::RPC_StartWarpingMouse:
-                    std::cout << "RPC_StartWarpingMouse" << std::endl;
-                    RPC_StartWarpingMouse();
-                    break;
-                case RPCType::RPC_StopWarpingMouse:
-                    std::cout << "RPC_StopWarpingMouse" << std::endl;
-                    RPC_StopWarpingMouse();
-                    break;
-                case RPCType::RPC_HideMouse:
-                    std::cout << "RPC_HideMouse" << std::endl;
-                    RPC_HideMouse();
-                    break;
-                case RPCType::RPC_UnhideMouse:
-                    std::cout << "RPC_UnhideMouse" << std::endl;
-                    RPC_UnhideMouse();
-                    break;
-                }
+                std::cout << "Error receiving RPC Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                break;
             }
             else
             {
-                std::cout << "Received Invalid RPC Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                if (received == sizeof(packet) && packet.MagicNumber == P_MAGIC_NUMBER)
+                {
+                    SendRPCAwk(server);
+
+                    std::cout << "Received RPC ";
+                    switch ((RPCType)packet.RPCType)
+                    {
+                    case RPCType::RPC_SetMousePosition:
+                        std::cout << "RPC_SetMousePosition" << std::endl;
+                        {
+                            NetworkEntityRPCSetMouseData data;
+                            error = server->Recv((char*)&data, sizeof(data), &received);
+                            if (error != SocketError::SOCKET_E_SUCCESS)
+                            {
+                                std::cout << "Error receiving NetworkEntityRPCSetMouseData Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                                break;
+                            }
+                            if (received != sizeof(data))
+                            {
+                                std::cout << "Error Received invalid NetworkEntityRPCSetMouseData from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                                break;
+                            }
+
+                            SendRPCAwk(server);
+
+                            std::cout << "NetworkEntityRPCSetMouseData {" << data.x << "," << data.y << "}" << std::endl;
+                            RPC_SetMousePosition(data.x, data.y);
+                        }
+                        break;
+                    case RPCType::RPC_HideMouse:
+                        std::cout << "RPC_HideMouse" << std::endl;
+                        RPC_HideMouse();
+                        break;
+                    case RPCType::RPC_UnhideMouse:
+                        std::cout << "RPC_UnhideMouse" << std::endl;
+                        RPC_UnhideMouse();
+                        break;
+                    }
+                }
+                else
+                {
+                    std::cout << "Received Invalid RPC Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                    break;
+                }
             }
         }
-
         delete server;
     }
 }

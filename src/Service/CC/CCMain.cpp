@@ -146,7 +146,7 @@ void CCMain::StartServerMain()
 		throw std::exception(exceptionString.c_str());
 	}
 
-	OSInterface::SharedInterface().RegisterForOSEvents(this);
+	//OSInterface::SharedInterface().RegisterForOSEvents(this);
 	_serverBroadcastThread = std::thread([&]() {
 		while (_serverShouldRun)
 		{
@@ -312,6 +312,9 @@ void CCMain::NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity)
 
 	SetupGlobalPositions();
 	SetupEntityConnections();
+
+	if(entity->GetIsLocal() == false)
+		entity->RPC_SetMousePosition(0.5, 0.5);
 }
 
 void CCMain::EntityLost(std::shared_ptr<CCNetworkEntity> entity, NELostReason lostReason)
@@ -375,7 +378,7 @@ bool CCMain::ReceivedNewInputEvent(const OSEvent event)
 					
 		// Force mouse to be in center of screen
 		std::cout << "Start Warp Current" << std::endl;
-		_currentEntity->RPC_StartWarpingMouse();
+		//_currentEntity->RPC_StartWarpingMouse();
 
 		// unhide mouse of last entity
 		std::cout << "Unhide Mouse Next" << std::endl;
@@ -383,7 +386,7 @@ bool CCMain::ReceivedNewInputEvent(const OSEvent event)
 
 		// stop forcing entity mouse to center
 		std::cout << "Stop Warping Next" << std::endl;
-		nextEntity->RPC_StopWarpingMouse();
+		//nextEntity->RPC_StopWarpingMouse();
 
 		_currentEntity = nextEntity;
 				

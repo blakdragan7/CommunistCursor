@@ -26,8 +26,7 @@ class CCConfigurationManager;
 
 enum class RPCType : int
 {
-    RPC_StartWarpingMouse,
-    RPC_StopWarpingMouse,
+    RPC_SetMousePosition,
     RPC_HideMouse,
     RPC_UnhideMouse
 };
@@ -59,10 +58,12 @@ private:
 
 private:
     // Some Helper Functions
+    bool ShouldRetryRPC(SocketError error)const;
     SocketError SendKeyEventPacket(const OSEvent& event)const;
     SocketError SendMouseEventPacket(const OSEvent& event)const;
     SocketError SendHIDEventPacket(const OSEvent& event)const;
-    SocketError SendRCPOfType(RPCType rpcType)const;
+    SocketError SendRPCOfType(RPCType rpcType, void* data = 0, size_t dataSize = 0)const;
+    SocketError SendRPCAwk(Socket* socket)const;
 
 public:
     CCNetworkEntity(std::string entityID);
@@ -98,8 +99,7 @@ public:
 
     // RPC Functions
 
-    void RPC_StartWarpingMouse();
-    void RPC_StopWarpingMouse();
+    void RPC_SetMousePosition(float xPercent,float yPercent);
     void RPC_HideMouse();
     void RPC_UnhideMouse();
 

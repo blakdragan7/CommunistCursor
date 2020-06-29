@@ -79,4 +79,19 @@ struct NetworkEntityRPCPacket
 	NetworkEntityRPCPacket(unsigned char RPCType) : MagicNumber(P_MAGIC_NUMBER), RPCType(RPCType) {}
 };
 
+struct NetworkEntityRPCSetMouseData
+{
+	float x;
+	float y;
+	unsigned int MagicNumber;
+	NetworkEntityRPCSetMouseData() : MagicNumber(P_MAGIC_NUMBER), x(0), y(0) {}
+	NetworkEntityRPCSetMouseData(float x, float y) : MagicNumber(P_MAGIC_NUMBER), x(x), y(y) {}
+};
+
+struct NetworkEntityRPCAwk
+{
+	unsigned int MagicNumber;
+	NetworkEntityRPCAwk() : MagicNumber(P_MAGIC_NUMBER) {}
+};
+
 #endif
