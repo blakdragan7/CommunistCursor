@@ -55,7 +55,7 @@ Socket::~Socket()
         freeaddrinfo((addrinfo*)_internalSockInfo);
     // free socket
     if(sfd != (NativeSocketHandle)INVALID_SOCKET)
-        closesocket((SOCKET)sfd);
+        Close();
 }
 
 void Socket::OSSocketStartup()
