@@ -103,26 +103,32 @@ struct NativeDisplay
 struct OSEvent
 {
     OSEventType eventType;
+
     union
     {
         MouseEventType mouseEvent;
         KeyEventType keyEvent;
-        int raw;
-    } subEvent;
+    };
     
     union
     {
         MouseButton mouseButton;
         int scanCode;
-    }eventButton;
+    };
 
     int extendButtonInfo;
-    int deltaX, deltaY;
+
+    int deltaX;
+    int x;
+
+    int deltaY;
+    int y;
+
     int nativeScreenID;
 
     OSEvent() : eventType(OS_EVENT_INVALID), extendButtonInfo(0), \
-                                deltaX(0), deltaY(0), nativeScreenID(-1)
-    {subEvent.keyEvent = KEY_EVENT_INVALID;eventButton.scanCode = -1;}
+                                deltaX(0), x(0), deltaY(0), y(0), nativeScreenID(-1)
+    {keyEvent = KEY_EVENT_INVALID;scanCode = -1;}
 };
 
 // Misc Types

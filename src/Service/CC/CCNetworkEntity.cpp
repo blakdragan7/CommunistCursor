@@ -6,9 +6,12 @@
 #include "../OSInterface/OSTypes.h"
 #include "../OSInterface/PacketTypes.h"
 #include "../OSInterface/OSInterface.h"
+
 #include "CCPacketTypes.h"
 #include "CCDisplay.h"
+#include "CCLogger.h"
 
+#include "INetworkEntityDelegate.h"
 #include "CCConfigurationManager.h"
 
 using nlohmann::json;
@@ -37,72 +40,14 @@ void from_json(const json& j, Rect& p)
 
 int CCNetworkEntity::_jumpBuffer = 20;
 
-SocketError CCNetworkEntity::SendKeyEventPacket(const OSEvent& event)const
+SocketError CCNetworkEntity::SendRPCOfType(TCPPacketType rpcType, void* data, size_t dataSize)
 {
-    KeyEventPacket packet(event);
-    EventPacketHeader header(EVENT_PACKET_K);
+    std::lock_guard<std::mutex> lock(_tcpMutex);
 
-    SocketError ret = _udpCommSocket->Send(&header, sizeof(header));
-    if(ret != SocketError::SOCKET_E_SUCCESS)
-        return ret;
-    return _udpCommSocket->Send(&packet, sizeof(packet));
-}
-
-SocketError CCNetworkEntity::SendMouseEventPacket(const OSEvent& event)const
-{
-    switch(event.subEvent.mouseEvent)
-    {
-        case MOUSE_EVENT_DOWN:
-        case MOUSE_EVENT_UP:
-            {
-                EventPacketHeader header(EVENT_PACKET_MB);
-                MouseButtonEventPacket packet(event);
-
-                SocketError ret = _udpCommSocket->Send(&header, sizeof(header));
-                if(ret != SocketError::SOCKET_E_SUCCESS)
-                    return ret;
-                return _udpCommSocket->Send(&packet, sizeof(packet));
-            }
-            break;
-        case MOUSE_EVENT_SCROLL:
-            {
-                EventPacketHeader header(EVENT_PACKET_MW);
-                MouseWheelEventPacket packet(event);
-
-                SocketError ret = _udpCommSocket->Send(&header, sizeof(header));
-                if(ret != SocketError::SOCKET_E_SUCCESS)
-                    return ret;
-                return _udpCommSocket->Send(&packet, sizeof(packet));
-            }
-            break;
-        case MOUSE_EVENT_MOVE:
-            {
-                EventPacketHeader header(EVENT_PACKET_MM);
-                MouseMoveEventPacket packet(event);
-
-                SocketError ret = _udpCommSocket->Send(&header, sizeof(header));
-                if(ret != SocketError::SOCKET_E_SUCCESS)
-                    return ret;
-                return _udpCommSocket->Send(&packet, sizeof(packet));
-            }
-            break;
-        default:
-            return SocketError::SOCKET_E_INVALID_PARAM;
-    }
-}
-
-SocketError CCNetworkEntity::SendHIDEventPacket(const OSEvent& event)const
-{
-    // not implemented yet
-    return SocketError::SOCKET_E_NOT_IMPLEMENTED;
-}
-
-SocketError CCNetworkEntity::SendRPCOfType(RPCType rpcType, void* data, size_t dataSize) const
-{
     if (_isLocalEntity)
         return SocketError::SOCKET_E_UNKOWN;
 
-    NetworkEntityRPCPacket packet((unsigned char)rpcType);
+    NETCPPacketHeader packet((unsigned char)rpcType);
 
     SocketError error = _tcpCommSocket->Send(&packet, sizeof(packet));
     if (error != SocketError::SOCKET_E_SUCCESS)
@@ -114,9 +59,7 @@ SocketError CCNetworkEntity::SendRPCOfType(RPCType rpcType, void* data, size_t d
         else return error;
     }
 
-    NetworkEntityRPCAwk awk;
-    size_t received;
-    error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+    error = WaitForAwk(_tcpCommSocket.get());
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
         if (ShouldRetryRPC(error))
@@ -124,12 +67,6 @@ SocketError CCNetworkEntity::SendRPCOfType(RPCType rpcType, void* data, size_t d
             return SendRPCOfType(rpcType, data, dataSize);
         }
         else return error;
-    }
-
-    if (awk.MagicNumber != P_MAGIC_NUMBER)
-    {
-        std::cout << "Received Invalid Awk for RPC !" << std::endl;
-        return SocketError::SOCKET_E_UNKOWN;
     }
 
     if (data && dataSize != 0)
@@ -144,9 +81,7 @@ SocketError CCNetworkEntity::SendRPCOfType(RPCType rpcType, void* data, size_t d
             else return error;
         }
 
-        NetworkEntityRPCAwk awk;
-        size_t received;
-        error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+        error = WaitForAwk(_tcpCommSocket.get());
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             if (ShouldRetryRPC(error))
@@ -179,13 +114,31 @@ bool CCNetworkEntity::ShouldRetryRPC(SocketError error) const
     else return false;
 }
 
-SocketError CCNetworkEntity::SendRPCAwk(Socket* socket) const
+SocketError CCNetworkEntity::SendAwk(Socket* socket)
 {
-    NetworkEntityRPCAwk awk;
+    std::lock_guard<std::mutex> lock(_tcpMutex);
+
+    NETCPPacketAwk awk;
     return socket->Send(&awk, sizeof(awk));
 }
 
-CCNetworkEntity::CCNetworkEntity(std::string entityID) : _entityID(entityID), _isLocalEntity(true), _shouldBeRunningCommThread(true)
+SocketError CCNetworkEntity::WaitForAwk(Socket* socket)
+{
+    NETCPPacketAwk awk;
+    size_t received;
+    SocketError error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+
+    if (received != sizeof(awk) || awk.MagicNumber != P_MAGIC_NUMBER)
+    {
+        LOG_ERROR << "Error Receiving Awk, Invalid Packet received" << std::endl;
+        return SocketError::SOCKET_E_INVALID_PACKET;
+    }
+
+    return error;
+}
+
+CCNetworkEntity::CCNetworkEntity(std::string entityID) : _entityID(entityID), _isLocalEntity(true), \
+_shouldBeRunningCommThread(true), _delegate(0)
 {
     // this is local so we make the server here
     int port = 1045; // this should be configured somehow at some point
@@ -195,7 +148,7 @@ CCNetworkEntity::CCNetworkEntity(std::string entityID) : _entityID(entityID), _i
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID, Socket* socket) : _entityID(entityID), _udpCommSocket(socket),\
-_isLocalEntity(false), _shouldBeRunningCommThread(false)
+_isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0)
 {
     // this is a remote entity so we create a tcp client here
     std::string address = socket->GetAddress();
@@ -203,40 +156,63 @@ _isLocalEntity(false), _shouldBeRunningCommThread(false)
 
     // this is our comm socket, we don't need to do anything else at this point with it
     _tcpCommSocket = std::make_unique<Socket>(address, port, false, SocketProtocol::SOCKET_P_TCP);
+    _tcpCommThread = std::thread(&CCNetworkEntity::HeartbeatThread, this);
 }
 
-SocketError CCNetworkEntity::Send(const char* buff, const size_t size)const
+CCNetworkEntity::~CCNetworkEntity()
 {
-    return _udpCommSocket->Send(buff, size);
+    ShutdownThreads();
 }
 
-SocketError CCNetworkEntity::Send(const std::string toSend)const
-{
-    return _udpCommSocket->Send(toSend);
-}
-
-SocketError CCNetworkEntity::SendOSEvent(const OSEvent& event)const
+SocketError CCNetworkEntity::SendOSEvent(const OSEvent& event)
 {
     if (_isLocalEntity)
     {
-        std::cout << "Trying to send Event to Local Entity !" << std::endl;
+        LOG_ERROR << "Trying to send Event to Local Entity !" << std::endl;
         return SocketError::SOCKET_E_SUCCESS;
     }
 
-    switch(event.eventType)
+    std::lock_guard<std::mutex> lock(_tcpMutex);
+
+    if (_tcpCommSocket->GetIsConnected() == false)
     {
-        case OS_EVENT_KEY:
-            return SendKeyEventPacket(event);
-            break;
-        case OS_EVENT_MOUSE:
-            return SendMouseEventPacket(event);
-            break;
-        case OS_EVENT_HID:
-            return SendHIDEventPacket(event);
-            break;
-        default:
-            return SocketError::SOCKET_E_INVALID_PARAM;
+        SocketError error = _tcpCommSocket->Connect();
+        if(error != SocketError::SOCKET_E_SUCCESS)
+            return error;
     }
+
+    NETCPPacketHeader header((char)TCPPacketType::OSEventHeader);
+    SocketError ret = _tcpCommSocket->Send(&header, sizeof(header));
+    if (ret != SocketError::SOCKET_E_SUCCESS)
+        return ret;
+    ret = WaitForAwk(_tcpCommSocket.get());
+    if (ret != SocketError::SOCKET_E_SUCCESS)
+        return ret;
+
+    OSInputEventPacket packet(event);
+
+    ret = _tcpCommSocket->Send(&packet, sizeof(packet));
+    if (ret != SocketError::SOCKET_E_SUCCESS)
+        return ret;
+
+    return WaitForAwk(_tcpCommSocket.get());
+}
+
+SocketError CCNetworkEntity::ReceiveOSEvent(Socket* socket, OSEvent& newEvent)
+{
+    OSInputEventPacket packet;
+    size_t received = 0;
+    SocketError error = socket->Recv((char*)&packet, sizeof(packet), &received);
+
+    if (error != SocketError::SOCKET_E_SUCCESS || received != sizeof(packet))
+    {
+        LOG_ERROR << "Error Trying Receive OS Event Packet From Server !: " << SOCK_ERR_STR(socket, error) << std::endl;
+        return error;
+    }
+
+    newEvent = packet.AsOSEvent();
+
+    return error;
 }
 
 void CCNetworkEntity::AddDisplay(std::shared_ptr<CCDisplay> display)
@@ -359,6 +335,19 @@ void CCNetworkEntity::SaveTo(CCConfigurationManager& manager) const
     manager.SetValue({ "Entities", _entityID }, _offsets);
 }
 
+void CCNetworkEntity::ShutdownThreads()
+{
+    _shouldBeRunningCommThread = false;
+
+    if (_udpCommSocket.get())
+        _udpCommSocket->Close();
+
+    if (_tcpCommSocket.get())
+        _tcpCommSocket->Close();
+
+    _tcpCommThread.join();
+}
+
 void CCNetworkEntity::RPC_SetMousePosition(float xPercent, float yPercent)
 {
     if (_isLocalEntity)
@@ -366,16 +355,25 @@ void CCNetworkEntity::RPC_SetMousePosition(float xPercent, float yPercent)
         // warp mouse
         int x = _totalBounds.topLeft.x + (int)((_totalBounds.bottomRight.x - _totalBounds.topLeft.x) * xPercent);
         int y = _totalBounds.topLeft.y + (int)((_totalBounds.bottomRight.y - _totalBounds.topLeft.y) * yPercent);
-        std::cout << "RPC_SetMousePosition {" << x << "," << y << "}" << std::endl;
-        OSInterface::SharedInterface().SetMousePosition(x, y);
+        LOG_ERROR << "RPC_SetMousePosition {" << x << "," << y << "}" << std::endl;
+
+        // spawn thread for to send input on because we don't want a dead lock with messages
+        // this is a windows issue and could be solved in OSInterface probably but for now
+        // this will work
+
+        std::thread thread([x,y]() {
+            OSInterface::SharedInterface().SetMousePosition(x, y);
+        });
+
+        thread.detach();
     }
     else
     {
-        NetworkEntityRPCSetMouseData data(xPercent, yPercent);
-        SocketError error = SendRPCOfType(RPCType::RPC_SetMousePosition, &data, sizeof(data));
+        NERPCSetMouseData data(xPercent, yPercent);
+        SocketError error = SendRPCOfType(TCPPacketType::RPC_SetMousePosition, &data, sizeof(data));
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            std::cout << "Could not perform RPC_StartWarpingMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Could not perform RPC_StartWarpingMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
         }
     }
 }
@@ -389,10 +387,10 @@ void CCNetworkEntity::RPC_HideMouse()
     }
     else
     {
-        SocketError error = SendRPCOfType(RPCType::RPC_HideMouse);
+        SocketError error = SendRPCOfType(TCPPacketType::RPC_HideMouse);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            std::cout << "Could not perform RPC_HideMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Could not perform RPC_HideMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
         }
     }
 }
@@ -406,10 +404,10 @@ void CCNetworkEntity::RPC_UnhideMouse()
     }
     else
     {
-        SocketError error = SendRPCOfType(RPCType::RPC_UnhideMouse);
+        SocketError error = SendRPCOfType(TCPPacketType::RPC_UnhideMouse);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            std::cout << "Could not perform RPC!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Could not perform RPC!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
         }
     }
 }
@@ -419,13 +417,13 @@ void CCNetworkEntity::TCPCommThread()
     SocketError error = _tcpCommSocket->Bind();
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
-        std::cout << "Error Binding Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        LOG_ERROR << "Error Binding Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
     }
 
     error = _tcpCommSocket->Listen();
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
-        std::cout << "Error Listening From Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        LOG_ERROR << "Error Listening From Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
     }
 
     while (_shouldBeRunningCommThread)
@@ -434,73 +432,162 @@ void CCNetworkEntity::TCPCommThread()
         error = _tcpCommSocket->Accept(&server);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            std::cout << "Error accepting server connection: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Error accepting server connection: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
             continue;
         }
-        // we don't spawn a thread here because there should only ever be one server giving RPC commands
-        while (server->GetIsConnected())
+
+        // we don't spawn a thread here because there should only ever be one server
+        while (server->GetIsConnected() && _shouldBeRunningCommThread)
         {
-            NetworkEntityRPCPacket packet;
+            NETCPPacketHeader packet;
             size_t received = 0;
             error = server->Recv((char*)&packet, sizeof(packet), &received);
             if (error != SocketError::SOCKET_E_SUCCESS)
             {
-                std::cout << "Error receiving RPC Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                LOG_ERROR << "Error receiving NETCPPacketHeader from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(server, error) << std::endl;
                 break;
             }
-            else
+            
+            if (received == sizeof(packet) && packet.MagicNumber == P_MAGIC_NUMBER)
             {
-                if (received == sizeof(packet) && packet.MagicNumber == P_MAGIC_NUMBER)
-                {
-                    SendRPCAwk(server);
+                SendAwk(server);
 
-                    std::cout << "Received RPC ";
-                    switch ((RPCType)packet.RPCType)
+                LOG_INFO << "Received RPC ";
+                switch ((TCPPacketType)packet.Type)
+                {
+                case TCPPacketType::RPC_SetMousePosition:
+                    LOG_ERROR << "RPC_SetMousePosition" << std::endl;
                     {
-                    case RPCType::RPC_SetMousePosition:
-                        std::cout << "RPC_SetMousePosition" << std::endl;
+                        NERPCSetMouseData data;
+                        error = server->Recv((char*)&data, sizeof(data), &received);
+                        if (error != SocketError::SOCKET_E_SUCCESS)
                         {
-                            NetworkEntityRPCSetMouseData data;
-                            error = server->Recv((char*)&data, sizeof(data), &received);
-                            if (error != SocketError::SOCKET_E_SUCCESS)
-                            {
-                                std::cout << "Error receiving NetworkEntityRPCSetMouseData Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
-                                break;
-                            }
-                            if (received != sizeof(data))
-                            {
-                                std::cout << "Error Received invalid NetworkEntityRPCSetMouseData from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
-                                break;
-                            }
-
-                            SendRPCAwk(server);
-
-                            std::cout << "NetworkEntityRPCSetMouseData {" << data.x << "," << data.y << "}" << std::endl;
-                            RPC_SetMousePosition(data.x, data.y);
+                            LOG_ERROR << "Error receiving NetworkEntityRPCSetMouseData Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                            break;
                         }
-                        break;
-                    case RPCType::RPC_HideMouse:
-                        std::cout << "RPC_HideMouse" << std::endl;
-                        RPC_HideMouse();
-                        break;
-                    case RPCType::RPC_UnhideMouse:
-                        std::cout << "RPC_UnhideMouse" << std::endl;
-                        RPC_UnhideMouse();
-                        break;
+                        if (received != sizeof(data))
+                        {
+                            LOG_ERROR << "Error Received invalid NetworkEntityRPCSetMouseData from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                            break;
+                        }
+
+                        SendAwk(server);
+
+                        LOG_INFO << "NetworkEntityRPCSetMouseData {" << data.x << "," << data.y << "}" << std::endl;
+                        RPC_SetMousePosition(data.x, data.y);
                     }
-                }
-                else
-                {
-                    std::cout << "Received Invalid RPC Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                    break;
+                case TCPPacketType::RPC_HideMouse:
+                    LOG_INFO << "RPC_HideMouse" << std::endl;
+                    RPC_HideMouse();
+                    break;
+                case TCPPacketType::RPC_UnhideMouse:
+                    LOG_INFO << "RPC_UnhideMouse" << std::endl;
+                    RPC_UnhideMouse();
+                    break;
+                case TCPPacketType::Heartbeat:
+                    LOG_INFO << "Received Heartbeat from server !" << std::endl;
+                    break;
+                case TCPPacketType::OSEventHeader:
+                    LOG_INFO << "Received OS Event Header from server !" << std::endl;
+                    {
+                        OSEvent osEvent;
+
+                        error = ReceiveOSEvent(server, osEvent);
+
+                        if (error != SocketError::SOCKET_E_SUCCESS)
+                        {
+                            LOG_ERROR << "Error receiving OSEvent Data Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                            break;
+                        }
+
+                        SendAwk(server);
+
+                        LOG_INFO << osEvent << std::endl;
+
+                        auto osError = OSInterface::SharedInterface().SendOSEvent(osEvent);
+                        if (osError != OSInterfaceError::OS_E_SUCCESS)
+                        {
+                            LOG_ERROR << "Error Trying To Inject OS Event" << osEvent << " with error " << OSInterfaceErrorToString(osError) << std::endl;
+                        }
+                    }
                     break;
                 }
             }
+            else
+            {
+                LOG_ERROR << "Received Invalid TCP Packet from Server {" << server->GetAddress() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+                break;
+            }
+            
         }
         delete server;
+    
+        if (_delegate)
+            _delegate->LostServer();
     }
 }
 
-CCNetworkEntity* CCNetworkEntity::GetEntityForPointInJumpZone(Point& p) const
+void CCNetworkEntity::HeartbeatThread()
+{
+    NETCPPacketHeader hearbeat((char)TCPPacketType::Heartbeat);
+
+    if (_tcpCommSocket->GetIsConnected() == false)
+    {
+        std::lock_guard<std::mutex> lock(_tcpMutex);
+        SocketError error = _tcpCommSocket->Connect();
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            if (_delegate)
+            {
+                _delegate->EntityLost(this);
+                return;
+            }
+        }
+    }
+
+    while (_shouldBeRunningCommThread && _tcpCommSocket->GetIsConnected())
+    {
+        auto nextHeartbeat = std::chrono::system_clock::now() + std::chrono::seconds(5);
+        {
+            std::lock_guard<std::mutex> lock(_tcpMutex);
+            SocketError error = _tcpCommSocket->Send((void*)&hearbeat, sizeof(hearbeat));
+
+            if (error != SocketError::SOCKET_E_SUCCESS)
+            {
+                if (_delegate)
+                {
+                    _delegate->EntityLost(this);
+                    return;
+                }
+            }
+
+            NETCPPacketAwk awk;
+            size_t received = 0;
+            error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+            if (error != SocketError::SOCKET_E_SUCCESS)
+            {
+                if (_delegate)
+                {
+                    _delegate->EntityLost(this);
+                    return;
+                }
+            }
+            if (received != sizeof(awk) || awk.MagicNumber != P_MAGIC_NUMBER)
+            {
+                if (_delegate)
+                {
+                    _delegate->EntityLost(this);
+                    return;
+                }
+            }
+        }
+
+        std::this_thread::sleep_until(nextHeartbeat);
+    }
+}
+
+bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** jumpEntity, JumpDirection& direction)const
 {
     Rect collision = _totalBounds;
 
@@ -514,7 +601,9 @@ CCNetworkEntity* CCNetworkEntity::GetEntityForPointInJumpZone(Point& p) const
             if (entity->PointIntersectsEntity({ p.x, p.y - _jumpBuffer }))
             {
                 p.y -= _jumpBuffer;
-                return entity;
+                *jumpEntity = entity;
+                direction = JumpDirection::UP;
+                return true;
             }
         }
     }
@@ -525,7 +614,9 @@ CCNetworkEntity* CCNetworkEntity::GetEntityForPointInJumpZone(Point& p) const
             if (entity->PointIntersectsEntity({ p.x, p.y + _jumpBuffer }))
             {
                 p.y += _jumpBuffer;
-                return entity;
+                *jumpEntity = entity;
+                direction = JumpDirection::DOWN;
+                return true;
             }
         }
     }
@@ -536,7 +627,9 @@ CCNetworkEntity* CCNetworkEntity::GetEntityForPointInJumpZone(Point& p) const
             if (entity->PointIntersectsEntity({ p.x - _jumpBuffer, p.y }))
             {
                 p.x -= _jumpBuffer;
-                return entity;
+                *jumpEntity = entity;
+                direction = JumpDirection::LEFT;
+                return true;
             }
         }
     }
@@ -547,7 +640,9 @@ CCNetworkEntity* CCNetworkEntity::GetEntityForPointInJumpZone(Point& p) const
             if (entity->PointIntersectsEntity({ p.x + _jumpBuffer, p.y }))
             {
                 p.y = +_jumpBuffer;
-                return entity;
+                *jumpEntity = entity;
+                direction = JumpDirection::RIGHT;
+                return true;
             }
         }
     }

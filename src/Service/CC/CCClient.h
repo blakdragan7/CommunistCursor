@@ -17,6 +17,8 @@ private:
     std::string _serverAddress;
     int _listenPort;
 
+    bool _needsNewServer;
+
 public:
     CCClient(int listenPort);
     // connects to and performs handshake with server.
@@ -26,16 +28,16 @@ public:
     // {port} is cached in the internal socket and for a new value to be used ResetSocket
     // must be called first
 
-    // {newEvent} is a reconstructed OSEvent from the packet information
-    // if return value is false then newEvent is undefined
-    // returns True upen success and false otherwise
-    bool ListenForOSEvent(OSEvent& newEvent);
     // Stops the client from listening for events
     // ensures the client is no longer receiving or binding port: listenPort
     void StopClientSocket();
 
+    // let CCMain be able to know that we lost the server
+    void SetNeedsNewServer() { _needsNewServer = true; }
+
     // Getters
     inline std::vector<NativeDisplay> GetDisplayList()const { return _displayList; };
+    inline bool GetNeedsNewServer()const {return _needsNewServer;}
 };
 
 #endif

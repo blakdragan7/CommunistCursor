@@ -4,10 +4,9 @@
 #include "../OSInterface/PacketTypes.h"
 
 #include "CCPacketTypes.h"
+#include "CCLogger.h"
 
-#include <iostream>
-
-CCClient::CCClient(int listenPort) : _serverAddress("0.0.0.0"), _listenPort(listenPort)
+CCClient::CCClient(int listenPort) : _serverAddress("0.0.0.0"), _listenPort(listenPort), _needsNewServer(true)
 {
 	auto error = OSInterface::SharedInterface().GetNativeDisplayList(_displayList);
 	if (error != OSInterfaceError::OS_E_SUCCESS)
@@ -24,7 +23,7 @@ void CCClient::ConnectToServer(std::string address, int port)
 	SocketError error = servSocket.Connect();
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error Trying To Connect To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Connect To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
 		return;
 	}
 
@@ -35,7 +34,7 @@ void CCClient::ConnectToServer(std::string address, int port)
 	OSInterfaceError osError = OSInterface::SharedInterface().GetLocalHostName(hostName);
 	if (osError != OSInterfaceError::OS_E_SUCCESS)
 	{
-		std::cout << "Error Trying to get Local Host Name\n";
+		LOG_ERROR << "Error Trying to get Local Host Name\n";
 		return;
 	}
 
@@ -44,7 +43,7 @@ void CCClient::ConnectToServer(std::string address, int port)
 	error = servSocket.Send((char*)&idPacket, sizeof(EntityIDPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error Trying To Send ID Packet To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Send ID Packet To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
 		return;
 	}
 
@@ -57,14 +56,14 @@ void CCClient::ConnectToServer(std::string address, int port)
 	error = servSocket.Send((char*)&addPacket, sizeof(AddressPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error Trying To Send Address Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Send Address Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
 		return;
 	}
 
 	error = servSocket.Send((char*)&listHeader, sizeof(DisplayListHeaderPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error Trying To Send List Header To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Send List Header To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
 		return;
 	}
 
@@ -81,7 +80,7 @@ void CCClient::ConnectToServer(std::string address, int port)
 		error = servSocket.Send((char*)&displayPacket, sizeof(DisplayListDisplayPacket));
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << "Error Trying To Send Display Info To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+			LOG_ERROR << "Error Trying To Send Display Info To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
 			return;
 		}
 	}
@@ -91,125 +90,19 @@ void CCClient::ConnectToServer(std::string address, int port)
 	error = servSocket.WaitForServer();
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error Trying To Wait For Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Wait For Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
 		return;
 	}
 
 	_serverAddress = address;
-}
-
-bool CCClient::ListenForOSEvent(OSEvent& newEvent)
-{
-	if (_internalSocket.get() == NULL)
-	{
-		_internalSocket.reset(new Socket(_serverAddress, _listenPort, false, SocketProtocol::SOCKET_P_UDP));
-		SocketError error = _internalSocket->Connect();
-		if (error != SocketError::SOCKET_E_SUCCESS)
-		{
-			std::cout << "Error Trying Receive Event Header From Server !: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
-			_internalSocket.reset();
-			return false;
-		}
-	}
-
-	EventPacketHeader eventHeader;
-	size_t received = 0;
-	SocketError error = _internalSocket->Recv((char*)&eventHeader, sizeof(EventPacketHeader), &received);
-
-	if (error != SocketError::SOCKET_E_SUCCESS || received != sizeof(EventPacketHeader))
-	{
-		std::cout << "Error Trying Receive Event Header From Server !: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
-		return false;
-	}
-
-	if (eventHeader.incomming_event_type == EVENT_PACKET_MM)
-	{
-		MouseMoveEventPacket moveEvent;
-
-		SocketError error = _internalSocket->RecvFrom((char*)&eventHeader, sizeof(EventPacketHeader), &received);
-
-		if (error != SocketError::SOCKET_E_SUCCESS || received != sizeof(MouseMoveEventPacket))
-		{
-			std::cout << "Error Trying To Receive Mouse Move Event From Server: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
-			return false;
-		}
-
-		memset(&newEvent, 0, sizeof(OSEvent));
-		newEvent.eventType = OS_EVENT_MOUSE;
-		newEvent.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
-		newEvent.deltaX = moveEvent.posX;
-		newEvent.deltaY = moveEvent.posY;
-		newEvent.nativeScreenID = moveEvent.nativeScreenID;
-
-		return true;
-	}
-	else if (eventHeader.incomming_event_type == EVENT_PACKET_MB)
-	{
-		MouseButtonEventPacket mouseButtonEvent;
-
-		SocketError error = _internalSocket->RecvFrom((char*)&mouseButtonEvent, sizeof(MouseButtonEventPacket), &received);
-
-		if (error != SocketError::SOCKET_E_SUCCESS || received != sizeof(MouseButtonEventPacket))
-		{
-			std::cout << "Error Trying To Receive Mouse Button Event From Server: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
-			return false;
-		}
-
-		memset(&newEvent, 0, sizeof(OSEvent));
-		newEvent.eventType = OS_EVENT_MOUSE;
-		newEvent.subEvent.mouseEvent = mouseButtonEvent.isDown ? MOUSE_EVENT_DOWN : MOUSE_EVENT_UP;
-		newEvent.eventButton.mouseButton = (MouseButton)mouseButtonEvent.mouseButton;
-
-		return true;
-	}
-	else if (eventHeader.incomming_event_type == EVENT_PACKET_MW)
-	{
-		MouseWheelEventPacket mouseWheelEvent;
-
-		SocketError error = _internalSocket->RecvFrom((char*)&mouseWheelEvent, sizeof(MouseWheelEventPacket), &received);
-
-		if (error != SocketError::SOCKET_E_SUCCESS || received != sizeof(MouseWheelEventPacket))
-		{
-			std::cout << "Error Trying To Receive Mouse Wheel Event From Server: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
-			return false;
-		}
-
-		memset(&newEvent, 0, sizeof(OSEvent));
-		newEvent.eventType = OS_EVENT_MOUSE;
-		newEvent.subEvent.mouseEvent = MOUSE_EVENT_SCROLL;
-		newEvent.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
-
-		return true;
-	}
-	else if (eventHeader.incomming_event_type == EVENT_PACKET_K)
-	{
-		KeyEventPacket keyEvent;
-
-		SocketError error = _internalSocket->RecvFrom((char*)&keyEvent, sizeof(KeyEventPacket), &received);
-
-		if (error != SocketError::SOCKET_E_SUCCESS || received != sizeof(KeyEventPacket))
-		{
-			std::cout << "Error Trying To Receive Mouse Wheel Event From Server: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
-			return false;
-		}
-
-		newEvent.eventType = OS_EVENT_KEY;
-		newEvent.subEvent.keyEvent = (KeyEventType)keyEvent.keyEvent;
-		newEvent.eventButton.scanCode = keyEvent.scancode;
-
-		return false;
-	}
-	else
-	{
-		std::cout << "Received Invalid Event type from Header Packet" << std::endl;
-		return false;
-	}
-
-	return false;
+	_needsNewServer = false;
 }
 
 void CCClient::StopClientSocket()
 {
 	if (_internalSocket.get())
+	{
 		_internalSocket->Close();
+		_internalSocket.reset();
+	}
 }

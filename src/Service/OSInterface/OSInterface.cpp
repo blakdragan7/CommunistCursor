@@ -16,7 +16,23 @@ OSInterface& OSInterface::SharedInterface()
 }
 
 OSInterface::OSInterface() :shouldRunMainloop(true), hasHookedEvents(false)
-{}
+{
+    int ret = StartupOSConnection();
+    if (ret != 0)
+    {
+        std::string errorString = "Could no Start Connection To OS " + std::to_string(ret);
+        throw std::exception(errorString.c_str());
+    }
+}
+
+OSInterface::~OSInterface()
+{
+    int ret = ShutdownOSConnection();
+    if (ret != 0)
+    {
+        std::cout << "Error Shuting down OS Connection error:" << ret << std::endl;
+    }
+}
 
 OSInterfaceError OSInterface::ConvertEventToNativeCoords(const OSEvent inEvent, OSEvent& outEvent)
 {
@@ -36,20 +52,26 @@ OSInterfaceError OSInterface::SetMouseHidden(bool hideMouse)
 
 OSInterfaceError OSInterface::SetMousePosition(int posX, int posY)
 {
-    int xPos, yPos;
-    auto error = this->GetMousePosition(xPos,yPos);
-    if (error != OSInterfaceError::OS_E_SUCCESS)
+    int osError = ::SetMousePosition(posX, posY);
+    if (osError != 0)
+        return OSErrorToOSInterfaceError(osError);
+
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
+OSInterfaceError OSInterface::SendOSEvent(const OSEvent& osEvent)
+{
+    switch (osEvent.eventType)
     {
-        return error;
+    case OS_EVENT_MOUSE:
+        return SendMouseEvent(osEvent);
+    case OS_EVENT_KEY:
+        return SendKeyEvent(osEvent);
+    case OS_EVENT_HID:
+        return OSInterfaceError::OS_E_NOT_IMPLEMENTED;
+    default:
+        return OSInterfaceError::OS_E_INVALID_PARAM;
     }
-
-    OSEvent mouseEvent;
-    mouseEvent.deltaX = posX - xPos;
-    mouseEvent.deltaY = posY - yPos;
-    mouseEvent.eventType = OS_EVENT_MOUSE;
-    mouseEvent.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
-
-    return SendMouseEvent(mouseEvent);
 }
 
 OSInterfaceError OSInterface::SendMouseEvent(OSEvent mouseEvent)
@@ -225,18 +247,24 @@ std::ostream& operator<<(std::ostream& os, const OSEvent& event)
     switch(event.eventType)
     {
     case OS_EVENT_MOUSE:
-        return os << "{" << "type:" << "Mouse Event" << " subType:" \
-        << MouseEventTypeToString(event.subEvent.mouseEvent) << " mouseButton:" << MouseButtonToString(event.eventButton.mouseButton)\
-        << " extendButtonInfo:" << event.extendButtonInfo << " delta {" << \
-        event.deltaX << "," << event.deltaY << "}, nativeScreenID:" << event.nativeScreenID; 
+        if (event.mouseEvent == MOUSE_EVENT_MOVE)
+        {
+            return os << "{ type: " << "Mouse Move Event " << "pos {" << event.x << "," << event.y << "}" << " delta {" << event.deltaX << "," << event.deltaY << "}";
+        }
+        else if (event.mouseEvent == MOUSE_EVENT_DOWN || event.mouseEvent == MOUSE_EVENT_UP)
+        {
+            return os << "{ type: " << "Mouse Button Event {isDown: " << \
+                ((event.mouseEvent == MOUSE_EVENT_DOWN) ? " True " : "False ") << " button: " \
+                << MouseButtonToString(event.mouseButton) << "}";
+        }
+        else if (event.mouseEvent == MOUSE_EVENT_SCROLL)
+        {
+            return os << "{ type: " << "Mouse Wheel Event { wheelData: " << event.extendButtonInfo << "}";
+        }
     case OS_EVENT_KEY:
         return os << "{" << "type:" << "Key Event" << " subType:" \
-        << KeyEventTypeToString(event.subEvent.keyEvent) << " scaneCode:" << event.eventButton.scanCode; 
+        << KeyEventTypeToString(event.keyEvent) << " scaneCode:" << event.scanCode; 
     case OS_EVENT_HID:
-        return os << "{" << "type:" << "HID Event" << " subType:" \
-        << event.subEvent.raw << " button:" << event.eventButton.mouseButton\
-        << " extendButtonInfo:" << event.extendButtonInfo << " pos {" << \
-        event.deltaX << "," << event.deltaY << "}"; 
     case OS_EVENT_INVALID:
     default:
         return os << "Invalid Event";

@@ -1,29 +1,41 @@
 #include "CCMain.h"
 
+#include "CCLogger.h"
 #include "CCServer.h"
 #include "CCClient.h"
-#include "CCBroadcastManager.h"
-
 #include "CCDisplay.h"
-
 #include "CCNetworkEntity.h"
+#include "CCBroadcastManager.h"
 
 #include "../Socket/Socket.h"
 #include "../Socket/SocketException.h"
 #include "../OSInterface/OSInterface.h"
 
-#include <iostream>
+#include <algorithm>
 #include <sstream>
-
 #include <chrono>
 #include <thread>
 
-#include <algorithm>
+#define REGISTER_OS_EVENTS 0
+
+#define DELTA_X_MAX 200
+#define DELTA_Y_MAX 200
 
 template<typename t>
 bool operator==(std::shared_ptr<t> lh, t* rh)
 {
 	return lh.get() == rh;
+}
+
+template<typename t>
+bool operator!=(std::shared_ptr<t> lh, t* rh)
+{
+	return lh.get() != rh;
+}
+
+std::ostream& operator <<(std::ostream& os, const Point& p)
+{
+	return os << "{" << p.x << "," << p.y << "}";
 }
 
 std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string subnet);
@@ -53,8 +65,26 @@ void CCMain::SetupEntityConnections()
 	}
 }
 
+void CCMain::RemoveLostEntites()
+{
+	// only lock out things that are cirtical
+	{
+		std::lock_guard<std::mutex> lock(_entitesAccessMutex);
+		for (auto entity : _lostEntites)
+		{
+			auto itr = std::find(_entites.begin(), _entites.end(), entity);
+			if (itr != _entites.end())
+				_entites.erase(itr);
+		}
+		_lostEntites.clear();
+	}
+
+	SetupEntityConnections();
+}
+
 CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)),
-_clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this), _configFile("cc.json")
+_clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this), \
+_configFile("cc.json"), _ignoreInputEvent(false)
 {
 	auto displayList = _client->GetDisplayList();
 
@@ -62,7 +92,7 @@ _clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _gui
 	OSInterfaceError error = OSInterface::SharedInterface().GetLocalHostName(hostName);
 	if (error != OSInterfaceError::OS_E_SUCCESS)
 	{
-		std::cout << "Error Getting Host Name. Using Default Instead\n";
+		LOG_ERROR << "Error Getting Host Name. Using Default Instead\n";
 		hostName = "Server";
 	}
 
@@ -92,7 +122,7 @@ void CCMain::StartServerMain()
 	_serverShouldRun = true;
 	_server->StartServer();
 
-	std::cout << "Starting Gui Server\n";
+	LOG_INFO << "Starting Gui Server\n";
 
 	if (_guiService.StartGUIServer() == false)
 	{
@@ -132,7 +162,7 @@ void CCMain::StartServerMain()
 	{
 		std::string broadcastAddress = BroadcastAddressFromIPAndSubnetMask(address.address, address.subnetMask);
 
-		std::cout << "New Broadcase Address: " << broadcastAddress << " on port: " << 1046 << std::endl;
+		LOG_INFO << "New Broadcase Address: " << broadcastAddress << " on port: " << 1046 << std::endl;
 		broadcasters.push_back(CCBroadcastManager(broadcastAddress, 1046));
 	}
 
@@ -145,9 +175,10 @@ void CCMain::StartServerMain()
 
 		throw std::exception(exceptionString.c_str());
 	}
-
-	//OSInterface::SharedInterface().RegisterForOSEvents(this);
-	_serverBroadcastThread = std::thread([&]() {
+#if REGISTER_OS_EVENTS
+	OSInterface::SharedInterface().RegisterForOSEvents(this);
+#endif
+	_serverBroadcastThread = std::thread([&broadcasters, &ipAddress, this]() {
 		while (_serverShouldRun)
 		{
 			// broadcase to every possible network we can.
@@ -160,16 +191,22 @@ void CCMain::StartServerMain()
 				if (broadcasters[i].BroadcastNow(ipAddress[i].address, 6555) == false)
 				{
 					broadcasters.erase(broadcasters.begin() + i);
-					ipAddress.erase(ipAddress.begin() + i);
 					break;
 				}
 			}
+
+			// remove all queued lost entites
+			RemoveLostEntites();
 
 			std::this_thread::sleep_for(std::chrono::seconds(5));
 		}
 	});
 
 	OSInterface::SharedInterface().OSMainLoop();
+
+#if REGISTER_OS_EVENTS
+	OSInterface::SharedInterface().UnRegisterForOSEvents(this);
+#endif
 }
 
 void CCMain::StartClientMain()
@@ -181,28 +218,11 @@ void CCMain::StartClientMain()
 	// intentionally blocks because we need to know the server address before we can do anything else
 	while (broadcastReceiver.ListenForBroadcasts(&address) == false);
 
-	std::cout << "Address: " << address.first << " Port: " << address.second << std::endl;
+	LOG_INFO << "Address: " << address.first << " Port: " << address.second << std::endl;
 
+	// This connects to the server and then tells the server everything it needs to know about us
+	// this connection will be disconnected and the server will re-connect via the remote CCNetworkEntity
 	_client->ConnectToServer(address.first, address.second);
-	// spawn a thread for listening for events
-	std::thread clientThread([&]() {
-		// receive events from server until told not to
-		OSEvent newEvent;
-		while (_clientShouldRun)
-		{
-			if (_client->ListenForOSEvent(newEvent))
-			{
-				if (newEvent.eventType == OS_EVENT_KEY)
-					OSInterface::SharedInterface().SendKeyEvent(newEvent);
-				else if (newEvent.eventType == OS_EVENT_MOUSE)
-					OSInterface::SharedInterface().SendMouseEvent(newEvent);
-				else
-					std::cout << "Received Invalid Event From Server: " << newEvent << std::endl;
-			}
-
-			// loop until told not to
-		}
-	});
 
 	OSInterface::SharedInterface().OSMainLoop();
 }
@@ -250,10 +270,12 @@ void CCMain::LoadAll(std::string path)
 		{
 			entity->LoadFrom(_configManager);
 		}
+
+		_currentMouseOffsets = _localEntity->GetBounds().topLeft;
 	}
 	else
 	{
-		std::cout << "Error loading from file " << path << std::endl;
+		LOG_ERROR << "Error loading from file " << path << std::endl;
 	}
 }
 
@@ -271,7 +293,7 @@ void CCMain::SaveAll(std::string path)
 
 	if (!_configManager.SaveToFile(path))
 	{
-		std::cout << "Error Saving to file " << path << std::endl;
+		LOG_ERROR << "Error Saving to file " << path << std::endl;
 	}
 }
 
@@ -305,27 +327,40 @@ void CCMain::SetupGlobalPositions()
 
 void CCMain::NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity)
 {
-	std::cout << "New Entity Discovered {" << entity->GetID() << "}" << std::endl;
+	LOG_INFO << "New Entity Discovered {" << entity->GetID() << "}" << std::endl;
 
 	entity->LoadFrom(_configManager);
-	_entites.push_back(entity);
-
+	entity->SetDelegate(this);
+	{
+		std::lock_guard<std::mutex> lock(_entitesAccessMutex);
+		_entites.push_back(entity);
+	}
+	
 	SetupGlobalPositions();
 	SetupEntityConnections();
-
-	if(entity->GetIsLocal() == false)
-		entity->RPC_SetMousePosition(0.5, 0.5);
 }
 
-void CCMain::EntityLost(std::shared_ptr<CCNetworkEntity> entity, NELostReason lostReason)
+void CCMain::EntityLost(CCNetworkEntity* entity)
 {
 	entity->ClearAllEntities();
 
-	auto itr = std::find(_entites.begin(), _entites.end(), entity);
-	if (itr != _entites.end())
-		_entites.erase(itr);
+	std::lock_guard<std::mutex> lock(_entitesAccessMutex);
 
-	SetupEntityConnections();
+	LOG_INFO << "Lost Entity " << entity->GetID() << std::endl;
+	_lostEntites.push_back(entity);
+
+	if (entity == _currentEntity)
+	{
+		_currentEntity = _localEntity.get();
+		_currentEntity->RPC_UnhideMouse();
+	}
+}
+
+void CCMain::LostServer()
+{
+	// force client to re-listen for server
+	_client->StopClientSocket();
+	_client->SetNeedsNewServer();
 }
 
 const std::vector<std::shared_ptr<CCNetworkEntity>>& CCMain::GetEntitiesToConfigure() const
@@ -347,56 +382,101 @@ void CCMain::EntitiesFinishedConfiguration()
 	SaveAll();
 }
 
-bool CCMain::ReceivedNewInputEvent(const OSEvent event)
+bool CCMain::ReceivedNewInputEvent(OSEvent event)
 {
+	bool isMove = false;
+	Point OffsetPos = _currentMousePosition + _currentMouseOffsets;
+
+	// check if we should skep or if the mouse moved more then we think it should
+	if (_ignoreInputEvent || abs(event.deltaX) > DELTA_X_MAX || abs(event.deltaY) > DELTA_Y_MAX)
+	{
+		LOG_INFO << "Skipping event " << event << std::endl;
+		_ignoreInputEvent = false;
+		return false;
+	}
+
 	if (event.eventType == OS_EVENT_MOUSE)
 	{
-		if (event.subEvent.mouseEvent == MOUSE_EVENT_MOVE)
+		if (event.mouseEvent == MOUSE_EVENT_MOVE)
 		{
 			_currentMousePosition.x += event.deltaX;
 			_currentMousePosition.y += event.deltaY;
+
+			OffsetPos = _currentMousePosition + _currentMouseOffsets;
+			if (_localEntity != _currentEntity)
+			{
+				Rect bounds = _currentEntity->GetBounds();
+				Point offsets = _currentEntity->GetOffsets();
+
+				int x = event.x - _currentMouseOffsets.x;
+				int y = event.y - _currentMouseOffsets.y;
+
+				if (abs(x - bounds.topLeft.x) < 20 || abs(x - bounds.bottomRight.x) < 20 || \
+					abs(y - bounds.topLeft.y) < 20 || abs(y - bounds.bottomRight.y) < 20)
+				{
+					_localEntity->RPC_SetMousePosition(0.5f, 0.5f);
+					_ignoreInputEvent = true;
+				}
+
+				event.x = ((OffsetPos.x - bounds.topLeft.x) + offsets.x) - ;
+				event.y = ((OffsetPos.y - bounds.topLeft.y) + offsets.y);
+			}
+
+			isMove = true;
 		}
 	}
+	else // always set offset pos
+		OffsetPos = _currentMousePosition + _currentMouseOffsets;
+	
 
-	Point OffsetPos;
+	if (event.eventType == OS_EVENT_KEY && event.scanCode == 69 /* PAUSE/BREAK button */)
+	{
+		_currentEntity = _localEntity.get();
+		_currentEntity->RPC_UnhideMouse();
+		_currentEntity->RPC_SetMousePosition(0.5, 0.5);
+		Rect bounds = _currentEntity->GetBounds();
+		_currentMousePosition = bounds.topLeft + ((bounds.bottomRight - bounds.topLeft) / 2);
+		return false;
+	}
+	
 
-	OffsetPos = _currentMousePosition + _currentMouseOffsets;
-
-	Rect Bounds = _currentEntity->GetBounds();
-
-	auto nextEntity = _currentEntity->GetEntityForPointInJumpZone(OffsetPos);
-	if (nextEntity)
+	JumpDirection direction;
+	CCNetworkEntity* nextEntity = 0;
+	if (_currentEntity->GetEntityForPointInJumpZone(OffsetPos, &nextEntity, direction))
 	{
 		_currentMousePosition = OffsetPos - _currentMouseOffsets;
 
 		// we have a jump zone
-		std::cout << "Jump To " << nextEntity->GetID() << std::endl;
+		LOG_INFO << "Jump To " << nextEntity->GetID() << std::endl;
 				
 		// hide mouse
-		std::cout << "Hide Mouse Current" << std::endl;
+		LOG_INFO << "Hide Mouse Current" << std::endl;
 		_currentEntity->RPC_HideMouse();
 					
 		// Force mouse to be in center of screen
-		std::cout << "Start Warp Current" << std::endl;
-		//_currentEntity->RPC_StartWarpingMouse();
+		LOG_INFO << "Warp Current Mouse To Center" << std::endl;
+		_currentEntity->RPC_SetMousePosition(0.5f,0.5f);
+		if (_currentEntity->GetIsLocal())
+			_ignoreInputEvent = true;
 
 		// unhide mouse of last entity
-		std::cout << "Unhide Mouse Next" << std::endl;
+		LOG_INFO << "Unhide Mouse Next" << std::endl;
 		nextEntity->RPC_UnhideMouse();
 
-		// stop forcing entity mouse to center
-		std::cout << "Stop Warping Next" << std::endl;
-		//nextEntity->RPC_StopWarpingMouse();
-
 		_currentEntity = nextEntity;
-				
 	}
 
 	if (_currentEntity->GetIsLocal()) return false;
 
-	_currentEntity->SendOSEvent(event);
+	LOG_INFO << "Sending Event " << event << std::endl;
 
-	return false; // normally true
+	SocketError error = _currentEntity->SendOSEvent(event);
+	if (error != SocketError::SOCKET_E_SUCCESS)
+	{
+		LOG_ERROR << "Error Sending Event To " << _currentEntity->GetID() << " Error: " << SOCK_ERR_STR(_currentEntity->GetUDPSocket(), error) << std::endl;
+	}
+
+	return true && !isMove;
 }
 
 // move these somewhere else later

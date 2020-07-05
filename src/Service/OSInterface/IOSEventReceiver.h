@@ -14,7 +14,7 @@ public:
 	 * true means block false means let it pass through
 	 */
 
-	virtual bool ReceivedNewInputEvent(const OSEvent event) = 0;
+	virtual bool ReceivedNewInputEvent(OSEvent event) = 0;
 	//virtual void RecveivedNewClipboardEvent(/* will be determined later */) = 0;
 };
 

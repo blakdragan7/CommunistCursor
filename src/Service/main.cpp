@@ -10,6 +10,8 @@
 #include "OSInterface/IOSEventReceiver.h"
 #include "OSInterface/OSTypes.h"
 
+#include "CC/CCLogger.h"
+
 #include "CC/CCMain.h"
 #include "CC/CCDisplay.h"
 #include "CC/CCNetworkEntity.h"
@@ -35,36 +37,36 @@ bool shouldPause = false;
 int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
-    
+
     int res = ParaseArguments(argc,argv);
 
     if(res < 0)
     {
-        std::cout << "Starting Communist Cursor\n";
+        LOG_INFO << "Starting Communist Cursor\n";
 
         CCMain main;
         main.LoadAll();
 
         if (res == -1)
         {
-            std::cout << "Starting Server\n";
+            LOG_INFO << "Starting Server\n";
             main.StartServerMain();
         }
         else if (res == -2)
         {
-            std::cout << "Starting Client\n";
+            LOG_INFO << "Starting Client\n";
             main.StartClientMain();
         }
         else
         {
-            std::cout << "Invalid return or error res: " << res << std::endl;
+            LOG_ERROR << "Invalid return or error res: " << res << std::endl;
             shouldPause = true;
         }
     }
 
     if(shouldPause)
     {
-        std::cout << "waiting for input:";
+        LOG_INFO << "waiting for input:";
         std::string val;
         std::cin >> val;
     }
@@ -124,19 +126,19 @@ int ParaseArguments(int argc, char* argv[])
     }
     catch (args::Help)
     {
-        std::cout << parser;
+        LOG_INFO << parser;
         return 0;
     }
     catch (args::ParseError e)
     {
-        std::cerr << e.what() << std::endl;
-        std::cerr << parser;
+        LOG_ERROR << e.what() << std::endl;
+        LOG_ERROR << parser;
         return 1;
     }
     catch (args::ValidationError e)
     {
-        std::cerr << e.what() << std::endl;
-        std::cerr << parser;
+        LOG_ERROR << e.what() << std::endl;
+        LOG_ERROR << parser;
         return 1;
     }
 
@@ -146,21 +148,21 @@ int ParaseArguments(int argc, char* argv[])
 
 int MouseMoveTest()
 {
-    std::cout << "MouseMoveTest" << std::endl;
+    LOG_INFO << "MouseMoveTest" << std::endl;
     
     OSInterface& osi = OSInterface::SharedInterface();
     OSEvent event;
 
     event.eventType = OS_EVENT_MOUSE;
-    event.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
+    event.mouseEvent = MOUSE_EVENT_MOVE;
 
-    event.deltaX = 20;
-    event.deltaY = 20;
+    event.x = 20;
+    event.y = 20;
 
     auto error = osi.SendMouseEvent(event);
     if(error != OSInterfaceError::OS_E_SUCCESS)
     {
-        std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
+        LOG_ERROR << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
         return 0;
     }
 
@@ -169,32 +171,32 @@ int MouseMoveTest()
 
 int KeyTest()
 {
-    std::cout << "KeyTest" << std::endl;
+    LOG_INFO << "KeyTest" << std::endl;
     
     OSInterface& osi = OSInterface::SharedInterface();
     
     OSEvent event;
     event.eventType = OS_EVENT_KEY;
-    event.subEvent.keyEvent = KEY_EVENT_DOWN;
+    event.keyEvent = KEY_EVENT_DOWN;
 
-    event.eventButton.scanCode = 20;
+    event.scanCode = 20;
 
     //std::cin.get();
 
     auto error = osi.SendKeyEvent(event);
     if(error != OSInterfaceError::OS_E_SUCCESS)
     {
-        std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
+        LOG_ERROR << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
         return 0;
     }
 
    // std::cin.get();
 
-    event.subEvent.keyEvent = KEY_EVENT_UP;
+    event.keyEvent = KEY_EVENT_UP;
     error = osi.SendKeyEvent(event);
     if(error != OSInterfaceError::OS_E_SUCCESS)
     {
-        std::cout << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
+        LOG_ERROR << "Error Sending event " << event << " with error:" << OSInterfaceErrorToString(error);
     }
 
     return 0;
@@ -202,7 +204,7 @@ int KeyTest()
 
 int EventTest()
 {
-    std::cout << "EventTest" << std::endl;
+    LOG_INFO << "EventTest" << std::endl;
     
     OSInterface& osi = OSInterface::SharedInterface();
     TestEventReceiver receiver;
@@ -217,7 +219,7 @@ int EventTest()
 
 int SocketTest(bool isServer)
 {
-    std::cout << "SocketTest" << std::endl;
+    LOG_INFO << "SocketTest" << std::endl;
     
 
     std::string toSend = "Hello !";
@@ -233,24 +235,21 @@ int SocketTest(bool isServer)
         SocketError e = socket.Connect("127.0.0.1");
         if(e != SocketError::SOCKET_E_SUCCESS)
         {
-            SocketException ex(e, socket.lastOSErr);
-            std::cout << "Error connecting to server " << ex.what();
+            LOG_ERROR << "Error connecting to server " << SOCK_ERR_STR(&socket, e);
             break;
         }
 
         e = socket.Send(toSend);
         if(e != SocketError::SOCKET_E_SUCCESS)
         {
-            SocketException ex(e, socket.lastOSErr);
-            std::cout << "Error sending from client " << ex.what();
+            LOG_ERROR << "Error sending from client " << SOCK_ERR_STR(&socket, e);
             break;
         }
 
         e = socket.WaitForServer();
         if(e != SocketError::SOCKET_E_SUCCESS)
         {
-            SocketException ex(e, socket.lastOSErr);
-            std::cout << "Error sending from client " << ex.what();
+            LOG_ERROR << "Error sending from client " << SOCK_ERR_STR(&socket, e);
             break;
         }
     }
@@ -260,23 +259,20 @@ int SocketTest(bool isServer)
             SocketError e = socket.Bind("127.0.0.1");
             if(e != SocketError::SOCKET_E_SUCCESS)
             {
-                SocketException ex(e, socket.lastOSErr);
-                std::cout << "Error binding socket " << ex.what();
+                LOG_ERROR << "Error binding socket " << SOCK_ERR_STR(&socket, e);
                 break;
             }
             e = socket.Listen();
             if(e != SocketError::SOCKET_E_SUCCESS)
             {
-                SocketException ex(e, socket.lastOSErr);
-                std::cout << "Error listening on socket " << ex.what();
+                LOG_ERROR << "Error listening on socket " << SOCK_ERR_STR(&socket, e);
                 break;
             }
             Socket* client = 0;
             e = socket.Accept(&client);
             if(e != SocketError::SOCKET_E_SUCCESS)
             {
-                SocketException ex(e, socket.lastOSErr);
-                std::cout << "Error accepting client " << ex.what();
+                LOG_ERROR << "Error accepting client " << SOCK_ERR_STR(client, e);
                 break;
             }
             char buf[256] = {0};
@@ -284,13 +280,12 @@ int SocketTest(bool isServer)
             e = client->Recv(buf,sizeof(buf), &received);
             if(e != SocketError::SOCKET_E_SUCCESS)
             {
-                SocketException ex(e, client->lastOSErr);
-                std::cout << "Error recieving from client " << ex.what();
+                LOG_ERROR << "Error recieving from client " << SOCK_ERR_STR(client, e);
             }
             else
             {
                 buf[received] = 0;
-                std::cout << "Server Received {" << buf << "} From Client !" << std::endl;
+                LOG_INFO << "Server Received {" << buf << "} From Client !" << std::endl;
             }
             
             delete client;

@@ -4,11 +4,13 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <mutex>
 
 #include "../OSInterface/IOSEventReceiver.h"
 #include "../OSInterface/OSTypes.h"
 
 #include "INetworkEntityDiscovery.h"
+#include "INetworkEntityDelegate.h"
 #include "CCConfigurationManager.h"
 #include "IGuiServiceInterface.h"
 #include "CCGUIService.h"
@@ -18,10 +20,12 @@
 class CCServer;
 class CCClient;
 class CCNetworkEntity;
-class CCMain : public INetworkEntityDiscovery, public IOSEventReceiver, public IGuiServiceInterface
+class CCMain : public INetworkEntityDiscovery, public IOSEventReceiver, public IGuiServiceInterface, public INetworkEntityDelegate
 {
 private:
-	std::vector<std::shared_ptr<CCNetworkEntity>> _entites;
+	std::vector<std::shared_ptr<CCNetworkEntity>>	_entites;
+	std::vector<CCNetworkEntity*>					_lostEntites;
+	std::mutex										_entitesAccessMutex;
 
 
 	std::shared_ptr<CCNetworkEntity> _localEntity;
@@ -40,12 +44,14 @@ private:
 
 	bool						_serverShouldRun;
 	bool						_clientShouldRun;
+	bool						_ignoreInputEvent;
 
 	std::string					_configFile;
 	CCConfigurationManager		_configManager;
 
 private:
 	void SetupEntityConnections();
+	void RemoveLostEntites();
 
 public:
 	CCMain();
@@ -70,9 +76,15 @@ public:
 	// INetworkDiscoery Implementation
 
 	virtual void NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity)override;
-	virtual void EntityLost(std::shared_ptr<CCNetworkEntity> entity, NELostReason lostReason)override;
-
 	// End INetworkDiscoery
+
+
+	// INetworkEntityDelegate Implmentation
+
+	virtual void EntityLost(CCNetworkEntity* entity)override;
+	virtual void LostServer()override;
+
+	// End INetworkEntityDelegate
 
 	// IGuiServiceInterface Implementation
 
@@ -84,7 +96,7 @@ public:
 
 	// IOSEventReceiver Implementation
 
-	virtual bool ReceivedNewInputEvent(const OSEvent event)override;
+	virtual bool ReceivedNewInputEvent(OSEvent event)override;
 
 	// END IOSEventReceiver 
 };

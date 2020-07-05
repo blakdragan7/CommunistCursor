@@ -80,6 +80,8 @@ const std::string SockErrorToString(SocketError err)
             return "OS Error";
         case SocketError::SOCKET_E_NOT_IMPLEMENTED:
             return "Error Not Implemented";
+        case SocketError::SOCKET_E_INVALID_PACKET:
+            return "Error Invalid Packet Received";
         case SocketError::SOCKET_E_UNKOWN:
             return "Unkown Error";
 
@@ -123,7 +125,7 @@ SocketError OSErrorToSocketError(int os_err)
     }
 }
 
-std::string FormatedStringWithSocketAndSocketError(Socket* socket, SocketError error)
+std::string FormatedStringWithSocketAndSocketError(const Socket* socket, SocketError error)
 {
    std::string info = SockErrorToString(error);
 

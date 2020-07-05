@@ -1,5 +1,5 @@
 #include "CCConfigurationManager.h"
-#include <iostream>
+#include "CCLogger.h"
 #include <fstream>
 
 using namespace std;
@@ -30,7 +30,7 @@ bool CCConfigurationManager::LoadFromFile(string filePath)
 		}
 		catch (const exception& e)
 		{
-			cout << "Error Parsing json file: " << e.what() << endl;
+			LOG_ERROR << "Error Parsing json file: " << e.what() << endl;
 		}
 	}
 	return false;
@@ -51,7 +51,7 @@ bool CCConfigurationManager::SaveToFile(string filePath)const
 		}
 		catch (const exception& e)
 		{
-			cout << "Error writing to file " << e.what() << endl;
+			LOG_ERROR << "Error writing to file " << e.what() << endl;
 		}
 	}
 	return false;

@@ -14,15 +14,71 @@
 #define DEFAULT_ADAPTOR_ADDRESS_SIZE 15000;
 #define MAX_ADAPTOR_FETCH_TRIES 3
 
+#define WINDOWS_NORM_X_MAX 65535
+#define WINDOWS_NORM_Y_MAX 65535
+
+#define WINDOW_CLASS_NAME "CC Window Class"
+
 OSInterface* osi = 0;
 HHOOK mouseHook=0, keyboardHook=0;
 
 POINT lastMousePoint = {0};
 
+HWND windowHandle = (HWND)INVALID_HANDLE_VALUE;
+
+LRESULT CALLBACK MainWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+}
+
+int StartupOSConnection()
+{
+    if (windowHandle != (HWND)INVALID_HANDLE_VALUE)
+        return 0;
+
+    WNDCLASSEX cls = {0};
+    cls.cbSize = sizeof(cls);
+    cls.hInstance = GetModuleHandle(NULL);
+    cls.lpszClassName = WINDOW_CLASS_NAME;
+    cls.lpfnWndProc = MainWndProc;
+
+    if (RegisterClassEx(&cls) == false)
+        return GetLastError();
+
+    int width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    int height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+    if (width == 0 || height == 0)
+        return -1;
+
+    windowHandle = CreateWindow(WINDOW_CLASS_NAME, "CC Window", WS_OVERLAPPEDWINDOW, 0, \
+        0, width, height, NULL, NULL, GetModuleHandle(NULL), NULL);
+
+    if (windowHandle == (HWND)INVALID_HANDLE_VALUE)
+        return GetLastError();
+    
+    UpdateWindow(windowHandle);
+
+    return 0;
+}
+
+int ShutdownOSConnection()
+{
+    if (windowHandle == (HWND)INVALID_HANDLE_VALUE)
+        return 0;
+
+    if (UnregisterClass(WINDOW_CLASS_NAME, GetModuleHandle(NULL)) == FALSE)
+        return GetLastError();
+
+    if (CloseWindow(windowHandle) == false)
+        return GetLastError();
+
+    return 0;
+}
 
 LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM lParam)
 {
-    if (nCode == HC_ACTION)
+    if (nCode == HC_ACTION && osi)
 	{
         OSEvent event;
         event.eventType = OS_EVENT_MOUSE;
@@ -31,42 +87,46 @@ LRESULT CALLBACK LowLevelMouseProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPARAM
 
         event.deltaX = msHook->pt.x - lastMousePoint.x;
         event.deltaY = msHook->pt.y - lastMousePoint.y;
+        event.x = msHook->pt.x;
+        event.y = msHook->pt.y;
 
         lastMousePoint = msHook->pt;
 
         switch (wParam) {
 		case WM_LBUTTONDOWN:
-			event.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
-            event.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
+			event.mouseButton = MOUSE_BUTTON_LEFT;
+            event.mouseEvent = MOUSE_EVENT_DOWN;
             break;
 		case WM_LBUTTONUP:
-            event.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
-            event.subEvent.mouseEvent = MOUSE_EVENT_UP;
+            event.mouseButton = MOUSE_BUTTON_LEFT;
+            event.mouseEvent = MOUSE_EVENT_UP;
 			break;
 		case WM_MOUSEMOVE:
-            event.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
+            event.mouseEvent = MOUSE_EVENT_MOVE;
 			break;
 		case WM_RBUTTONDOWN:
-            event.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
-            event.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
+            event.mouseButton = MOUSE_BUTTON_RIGHT;
+            event.mouseEvent = MOUSE_EVENT_DOWN;
 			break;
 		case WM_RBUTTONUP:
-            event.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
-            event.subEvent.mouseEvent = MOUSE_EVENT_UP;
+            event.mouseButton = MOUSE_BUTTON_RIGHT;
+            event.mouseEvent = MOUSE_EVENT_UP;
 			break;
         case WM_MOUSEWHEEL:
-            event.subEvent.mouseEvent = MOUSE_EVENT_SCROLL;
-            event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+            event.mouseEvent = MOUSE_EVENT_SCROLL;
+            event.mouseButton = MOUSE_BUTTON_MIDDLE;
             event.extendButtonInfo = GET_WHEEL_DELTA_WPARAM(msHook->mouseData) / WHEEL_DELTA;
             break;
         case WM_MBUTTONDOWN:
-            event.subEvent.mouseEvent = MOUSE_EVENT_DOWN;
-            event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+            event.mouseEvent = MOUSE_EVENT_DOWN;
+            event.mouseButton = MOUSE_BUTTON_MIDDLE;
             break;
         case WM_MBUTTONUP:
-            event.subEvent.mouseEvent = MOUSE_EVENT_UP;
-            event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+            event.mouseEvent = MOUSE_EVENT_UP;
+            event.mouseButton = MOUSE_BUTTON_MIDDLE;
             break;
+        default:
+            return CallNextHookEx(0, nCode, wParam, lParam);
         }
 
         // if OSI requests it we consume the event and stop it here
@@ -88,17 +148,17 @@ LRESULT CALLBACK LowLevelKeyboardProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPA
         event.eventType = OS_EVENT_KEY;
 
         KBDLLHOOKSTRUCT* msHook = (KBDLLHOOKSTRUCT*)lParam;
-        event.eventButton.scanCode = msHook->scanCode;
+        event.scanCode = msHook->scanCode;
 
         switch(wParam)
         {
             case WM_KEYDOWN:
             case WM_SYSKEYDOWN:
-            event.subEvent.keyEvent = KEY_EVENT_DOWN;
+            event.keyEvent = KEY_EVENT_DOWN;
             break;
             case WM_KEYUP:
             case WM_SYSKEYUP:
-            event.subEvent.keyEvent = KEY_EVENT_UP;
+            event.keyEvent = KEY_EVENT_UP;
             break;
         }
 
@@ -495,6 +555,27 @@ int GetHostName(std::string& hostName)
     return 0;
 }
 
+int SetMousePosition(int x, int y)
+{
+    INPUT newInput = { 0 };
+    int eventType = 0;
+
+    newInput.type = INPUT_MOUSE;
+
+    int width = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    int height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+    newInput.mi.dx = (LONG)(((float)x / (float)width) * 65535);
+    newInput.mi.dy = (LONG)(((float)y / (float)height) * 65535);
+
+    newInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+
+    if (SendInput(1, &newInput, sizeof(INPUT)) != 1)
+        return GetLastError();
+
+    return 0;
+}
+
 int GetMousePosition(int& xPos, int& yPos)
 {
     POINT p;
@@ -524,39 +605,38 @@ int SetMouseHidden(bool isHidden)
     return 0;
 }
 
-extern int SendMouseEvent(const OSEvent mouseEvent)
+int SendMouseEvent(const OSEvent mouseEvent)
 {
+    if (mouseEvent.mouseEvent == MOUSE_EVENT_MOVE)
+    {
+        return SetMousePosition(mouseEvent.x, mouseEvent.y);
+    }
+
     INPUT newInput = {0};
     int eventType = 0;
 
     newInput.type = INPUT_MOUSE;
 
-    newInput.mi.dx = mouseEvent.deltaX;
-    newInput.mi.dy = mouseEvent.deltaY;
-
-    switch(mouseEvent.subEvent.mouseEvent)
+    switch(mouseEvent.mouseEvent)
     {
     case MOUSE_EVENT_SCROLL:
         newInput.mi.mouseData = mouseEvent.extendButtonInfo * WHEEL_DELTA;
         eventType = MOUSEEVENTF_WHEEL;
         break;
-    case MOUSE_EVENT_MOVE:
-        eventType = MOUSEEVENTF_MOVE;
-        break;
     case MOUSE_EVENT_DOWN:
-        if(mouseEvent.eventButton.mouseButton == MOUSE_BUTTON_LEFT)
+        if(mouseEvent.mouseButton == MOUSE_BUTTON_LEFT)
             eventType = MOUSEEVENTF_LEFTDOWN;
-        else if(mouseEvent.eventButton.mouseButton == MOUSE_BUTTON_RIGHT)
+        else if(mouseEvent.mouseButton == MOUSE_BUTTON_RIGHT)
             eventType = MOUSEEVENTF_RIGHTDOWN;
-        else if(mouseEvent.eventButton.mouseButton == MOUSE_BUTTON_MIDDLE)
+        else if(mouseEvent.mouseButton == MOUSE_BUTTON_MIDDLE)
             eventType = MOUSEEVENTF_MIDDLEDOWN;
         break;
     case MOUSE_EVENT_UP:
-        if(mouseEvent.eventButton.mouseButton == MOUSE_BUTTON_LEFT)
+        if(mouseEvent.mouseButton == MOUSE_BUTTON_LEFT)
             eventType = MOUSEEVENTF_LEFTUP;
-        else if(mouseEvent.eventButton.mouseButton == MOUSE_BUTTON_RIGHT)
+        else if(mouseEvent.mouseButton == MOUSE_BUTTON_RIGHT)
             eventType = MOUSEEVENTF_RIGHTUP;
-        else if(mouseEvent.eventButton.mouseButton == MOUSE_BUTTON_MIDDLE)
+        else if(mouseEvent.mouseButton == MOUSE_BUTTON_MIDDLE)
             eventType = MOUSEEVENTF_MIDDLEUP;
         break;
     }
@@ -569,16 +649,16 @@ extern int SendMouseEvent(const OSEvent mouseEvent)
     return 0;
 }
 
-extern int SendKeyEvent(const OSEvent keyEvent)
+int SendKeyEvent(const OSEvent keyEvent)
 {
     INPUT newInput = {0};
     int eventType = 0;
 
     newInput.type = INPUT_KEYBOARD;
 
-    newInput.ki.wScan = keyEvent.eventButton.scanCode;
+    newInput.ki.wScan = keyEvent.scanCode;
 
-    switch(keyEvent.subEvent.keyEvent)
+    switch(keyEvent.keyEvent)
     {
     case KEY_EVENT_UP:
         eventType = KEYEVENTF_KEYUP;

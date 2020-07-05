@@ -4,10 +4,23 @@
 #include "OSTypes.h"
 #include <list>
 /*
+    So whatever this OS requires for starting up and being able to control the mouse.
+    i.e. on windows it creates an invisble window giving us access to setcursorpos etc...
+
+    returns on Success or OS specific error on failure
+*/
+extern int StartupOSConnection();
+/*
+    Essentially undoes everthing StartupOSConnection does.
+
+    returns on Success or OS specific error on failure 
+*/
+extern int ShutdownOSConnection();
+/*
     returns 0 on success and sets the exit code of the process with id {processID} into
     {*exitCode}
 
-    returns on OS specific error on failure    
+    returns on Success or OS specific error on failure    
 */
 extern int GetProcessExitCode(int processID, unsigned long* exitCode);
 /*
@@ -88,6 +101,13 @@ extern int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdr
     this will always return 0 
 */
 extern int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent);
+/*
+    Sets the mouse position to {x,y} in desktop coords 
+    (in other words two monitor setup coords would be both monitors together)
+
+    return 0 on success or an OS specific error on failure
+*/
+extern int SetMousePosition(int x,int y);
 /*
     Returns an OS error or 0 on success
 

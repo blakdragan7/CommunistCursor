@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <thread>
+#include <mutex>
 
 /*
 *
@@ -23,12 +24,28 @@ struct OSEvent;
 class Socket;
 class CCDisplay;
 class CCConfigurationManager;
+class INetworkEntityDelegate;
 
-enum class RPCType : int
+enum class TCPPacketType : int
 {
-    RPC_SetMousePosition,
-    RPC_HideMouse,
-    RPC_UnhideMouse
+    // RPC Types
+    RPC_SetMousePosition    = 0,
+    RPC_HideMouse           = 1,
+    RPC_UnhideMouse         = 2,
+
+    // Monitoring Types
+    Heartbeat               = 3,
+
+    // Events
+    OSEventHeader           = 4
+};
+
+enum class JumpDirection : int
+{
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT
 };
 
 class CCNetworkEntity
@@ -40,6 +57,8 @@ private:
     std::string _entityID;
     bool _isLocalEntity;
 
+    std::mutex      _tcpMutex;
+
     // only used client side
     std::thread _tcpCommThread;
     bool _shouldBeRunningCommThread;
@@ -48,6 +67,8 @@ private:
     
     Point _offsets;
     Rect  _totalBounds;
+
+    INetworkEntityDelegate* _delegate;
 
     std::vector<CCNetworkEntity*> _topEntites;
     std::vector<CCNetworkEntity*> _bottomEntites;
@@ -59,22 +80,17 @@ private:
 private:
     // Some Helper Functions
     bool ShouldRetryRPC(SocketError error)const;
-    SocketError SendKeyEventPacket(const OSEvent& event)const;
-    SocketError SendMouseEventPacket(const OSEvent& event)const;
-    SocketError SendHIDEventPacket(const OSEvent& event)const;
-    SocketError SendRPCOfType(RPCType rpcType, void* data = 0, size_t dataSize = 0)const;
-    SocketError SendRPCAwk(Socket* socket)const;
+    SocketError SendRPCOfType(TCPPacketType rpcType, void* data = 0, size_t dataSize = 0);
+    SocketError ReceiveOSEvent(Socket* socket, OSEvent& newEvent);
+    SocketError SendAwk(Socket* socket);
+    SocketError WaitForAwk(Socket* socket);
 
 public:
     CCNetworkEntity(std::string entityID);
     CCNetworkEntity(std::string entityID, Socket* socket);
-
-    // passes buff and size to internal socket. returns a SocketError enum
-    SocketError Send(const char* buff, const size_t size)const;
-    // passes ToSend to the internal socket. returns a SocketError enum
-    SocketError Send(const std::string toSend)const;
+    ~CCNetworkEntity();
     // converts event into the appropriate packet and sends it over with a header
-    SocketError SendOSEvent(const OSEvent& event)const;
+    SocketError SendOSEvent(const OSEvent& event);
 
     // This will add the display to the internal displays vector
     void AddDisplay(std::shared_ptr<CCDisplay> display);
@@ -86,7 +102,7 @@ public:
     void SetDisplayOffsets(Point offsets);
 
     // this returns the display that this point coincides or NULL if there are none
-    const std::shared_ptr <CCDisplay> DisplayForPoint(const Point& point)const;
+    const std::shared_ptr<CCDisplay> DisplayForPoint(const Point& point)const;
     // this returns wether or not {p} is within the bounds of any of it's displays
     bool PointIntersectsEntity(const Point& p)const;
     // Adds this entity as a connected entity if close enough
@@ -97,6 +113,8 @@ public:
     void LoadFrom(const CCConfigurationManager& manager);
     void SaveTo(CCConfigurationManager& manager)const;
 
+    void ShutdownThreads();
+
     // RPC Functions
 
     void RPC_SetMousePosition(float xPercent,float yPercent);
@@ -104,8 +122,11 @@ public:
     void RPC_UnhideMouse();
 
     // Client Functions
-
     void TCPCommThread();
+
+    // Server Functions
+    // this is a bad way to do this because it's a thread per NetworkEntity but for now, it will work
+    void HeartbeatThread();
 
     // return a list of all displays accosiated with this entity
     // This is currently just used for hardcoding coords for testing
@@ -113,14 +134,29 @@ public:
     inline std::vector<std::shared_ptr<CCDisplay>> GetAllDisplays()const { return _displays; }
 
     // This tests point {p} against the edges of this entities displays and connected entities
-    // if a collision if found that collided entity is returned
+    // if a collision if found that collided entity is stored in *{jumpEntity} and direction is set
     // {p} is modified by reference to account for "jump" zones 
-    CCNetworkEntity* GetEntityForPointInJumpZone(Point& p)const;
+    // returns true on found jump zone
+    bool GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** jumpEntity, JumpDirection &direction)const;
+
+    // gettters
 
     inline const std::string& GetID()const { return _entityID; }
     inline bool GetIsLocal()const {return _isLocalEntity;};
     inline const Point& GetOffsets()const { return _offsets; }
     inline const Rect& GetBounds()const { return _totalBounds; }
+    inline const Socket* GetUDPSocket()const { return _udpCommSocket.get(); }
+
+    // setters
+
+    inline void SetDelegate(INetworkEntityDelegate* newDelegate) { _delegate = newDelegate; }
+
+    // operators
+
+    bool operator==(const CCNetworkEntity& other)const
+    {
+        return _entityID == other._entityID;
+    }
 };
 
 #endif

@@ -68,30 +68,30 @@ struct DisplayListDisplayPacket
 	{}
 };
 
-// RPC Packet
+// RPC Packets
 
-struct NetworkEntityRPCPacket
+struct NETCPPacketHeader
 {
 	unsigned int MagicNumber;
-	unsigned char RPCType;
+	unsigned char Type;
 
-	NetworkEntityRPCPacket() : MagicNumber(P_MAGIC_NUMBER), RPCType(0) {}
-	NetworkEntityRPCPacket(unsigned char RPCType) : MagicNumber(P_MAGIC_NUMBER), RPCType(RPCType) {}
+	NETCPPacketHeader() : MagicNumber(P_MAGIC_NUMBER), Type(0) {}
+	NETCPPacketHeader(unsigned char Type) : MagicNumber(P_MAGIC_NUMBER), Type(Type) {}
 };
 
-struct NetworkEntityRPCSetMouseData
+struct NERPCSetMouseData
 {
 	float x;
 	float y;
 	unsigned int MagicNumber;
-	NetworkEntityRPCSetMouseData() : MagicNumber(P_MAGIC_NUMBER), x(0), y(0) {}
-	NetworkEntityRPCSetMouseData(float x, float y) : MagicNumber(P_MAGIC_NUMBER), x(x), y(y) {}
+	NERPCSetMouseData() : MagicNumber(P_MAGIC_NUMBER), x(0), y(0) {}
+	NERPCSetMouseData(float x, float y) : MagicNumber(P_MAGIC_NUMBER), x(x), y(y) {}
 };
 
-struct NetworkEntityRPCAwk
+struct NETCPPacketAwk
 {
 	unsigned int MagicNumber;
-	NetworkEntityRPCAwk() : MagicNumber(P_MAGIC_NUMBER) {}
+	NETCPPacketAwk() : MagicNumber(P_MAGIC_NUMBER) {}
 };
 
 #endif

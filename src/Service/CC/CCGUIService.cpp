@@ -2,12 +2,14 @@
 
 #include "../Socket/Socket.h"
 
+#include "CCLogger.h"
 #include "CCDisplay.h"
 #include "CCNetworkEntity.h"
 
 #include "IGuiServiceInterface.h"
 
 #include "../OSInterface/OSInterface.h"
+
 
 #include <nlohmann/json.hpp>
 #include <string>
@@ -29,7 +31,7 @@ void CCGuiService::SocketAcceptThread()
 		SocketError error = _serverSocket->Accept(&acceptedSocket);
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << "Error accepting Socket listen on GUI Port " << _serverSocket->GetPort() << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
+			LOG_ERROR << "Error accepting Socket listen on GUI Port " << _serverSocket->GetPort() << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
 			if (error == SocketError::SOCKET_E_BROKEN_PIPE)continue;
 			else break;
 		}
@@ -73,7 +75,7 @@ void CCGuiService::SocketAcceptThread()
 			SocketError error = acceptedSocket->Send(entites.dump());
 			if (error != SocketError::SOCKET_E_SUCCESS)
 			{
-				std::cout << "Error sending json packet " << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
+				LOG_ERROR << "Error sending json packet " << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
 				return;
 			}
 
@@ -82,7 +84,7 @@ void CCGuiService::SocketAcceptThread()
 			error = acceptedSocket->Recv(buff, 1024, &received);
 			if (error != SocketError::SOCKET_E_SUCCESS)
 			{
-				std::cout << "Error receiving json packet " << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
+				LOG_ERROR << "Error receiving json packet " << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
 				return;
 			}
 
@@ -125,14 +127,14 @@ bool CCGuiService::StartGUIServer()
 
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error trying to bind to GUI Port " << _serverSocket->GetPort() << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
+		LOG_ERROR << "Error trying to bind to GUI Port " << _serverSocket->GetPort() << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
 		return false;
 	}
 
 	error = _serverSocket->Listen();
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error trying listen on GUI Port " << _serverSocket->GetPort() << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
+		LOG_ERROR << "Error trying listen on GUI Port " << _serverSocket->GetPort() << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
 		return false;
 	}
 
@@ -159,7 +161,7 @@ bool CCGuiService::StartGuiClient() const
 
 	if (oError != OSInterfaceError::OS_E_SUCCESS)
 	{
-		std::cout << "Error Starting GUI Process " << OSInterfaceErrorToString(oError) << std::endl;
+		LOG_ERROR << "Error Starting GUI Process " << OSInterfaceErrorToString(oError) << std::endl;
 		return false;
 	}
 

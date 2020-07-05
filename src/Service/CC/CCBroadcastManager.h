@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <string>
-
 /*
 *  CCBroadcaster 
 *
@@ -14,11 +13,12 @@
 typedef std::pair<std::string, int> BServerAddress;
 
 class Socket;
+class CCNetworkEntity;
 class CCBroadcastManager
 {
 private:
-	std::unique_ptr<Socket> _internalSocket;
-	bool shouldBroadcast;
+	std::unique_ptr<Socket>							_internalSocket;
+	bool											_shouldBroadcast;
 
 public:
 	CCBroadcastManager();
@@ -33,8 +33,7 @@ public:
 	// return value pair of address (string) and port (int) of server
 	bool ListenForBroadcasts(BServerAddress* foundAddress);
 	
-
-	inline bool GetIsBroadcasting()const { return shouldBroadcast; }
+	inline bool GetIsBroadcasting()const { return _shouldBroadcast; }
 };
 
 #endif

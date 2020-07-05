@@ -1,6 +1,8 @@
 #ifndef BASIC_TYPES_H
 #define BASIC_TYPES_H
 
+#include <ostream>
+
 struct Point
 {
     int x,y;

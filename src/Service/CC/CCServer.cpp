@@ -11,24 +11,21 @@
 #include "CCPacketTypes.h"
 #include "CCDisplay.h"
 
-#include <iostream>
+#include "CCLogger.h"
 
-// simply used to accept more sockets
-void ServerAcceptThread(CCServer* server);
-
-CCServer::CCServer(int port, std::string listenAddress, INetworkEntityDiscovery* discoverer) : discoverer(discoverer), isRunning(false)
+CCServer::CCServer(int port, std::string listenAddress, INetworkEntityDiscovery* discoverer) : _discoverer(discoverer), _isRunning(false)
 {
 	_internalSocket = std::make_unique<Socket>(listenAddress, port, false, SocketProtocol::SOCKET_P_TCP);
 }
 
 void CCServer::SetDiscoverer(INetworkEntityDiscovery* discoverer)
 {
-	this->discoverer = discoverer;
+	this->_discoverer = discoverer;
 }
 
 void CCServer::StartServer()
 {
-	isRunning = true;
+	_isRunning = true;
 
 	SocketError error = _internalSocket->Bind();
 	if (error != SocketError::SOCKET_E_SUCCESS)
@@ -42,34 +39,34 @@ void CCServer::StartServer()
 		throw SocketException(error, _internalSocket->lastOSErr);
 	}
 
-	accpetThread = std::thread(ServerAcceptThread, this);
+	_accpetThread = std::thread(&CCServer::ServerAcceptThread, this);
 }
 
 void CCServer::StopServer()
 {
-	isRunning = false;
+	_isRunning = false;
 	_internalSocket->Disconnect();
 
-	accpetThread.join();
+	_accpetThread.join();
 
 	
 }
 
 bool CCServer::GetServerIsRunning()
 {
-	return isRunning && _internalSocket->GetIsListening();
+	return _isRunning && _internalSocket->GetIsListening();
 }
 
-void ServerAcceptThread(CCServer* server)
+void CCServer::ServerAcceptThread()
 {
-	while (server->isRunning)
+	while (_isRunning)
 	{
 		Socket* newSocket = 0;
-		SocketError error = server->_internalSocket->Accept(&newSocket);
+		SocketError error = _internalSocket->Accept(&newSocket);
 
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << "Error accepting new client Socket " << SOCK_ERR_STR(server->_internalSocket.get(), error) << std::endl;
+			LOG_ERROR << "Error accepting new client Socket " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
 			continue;
 		}
 
@@ -87,13 +84,13 @@ void ServerAcceptThread(CCServer* server)
 		error = acceptedSocket->Recv((char*)&idPacket, sizeof(EntityIDPacket), &received);
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << "Error Receiving EntityIDPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Error Receiving EntityIDPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
 		if (received != sizeof(EntityIDPacket) || idPacket.MagicNumber != P_MAGIC_NUMBER)
 		{
-			std::cout << "Invalid EntityIDPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Invalid EntityIDPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 		
@@ -101,13 +98,13 @@ void ServerAcceptThread(CCServer* server)
 
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << "Error Receiving AddressPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Error Receiving AddressPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
 		if (received != sizeof(AddressPacket) || addPacket.MagicNumber != P_MAGIC_NUMBER)
 		{
-			std::cout << "Invalid AddressPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Invalid AddressPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
@@ -120,13 +117,13 @@ void ServerAcceptThread(CCServer* server)
 
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			std::cout << "Error Receiving DisplayListHeaderPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Error Receiving DisplayListHeaderPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
 		if (received != sizeof(DisplayListHeaderPacket) || listHeaderPacket.MagicNumber != P_MAGIC_NUMBER)
 		{
-			std::cout << "Invalid DisplayListHeaderPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Invalid DisplayListHeaderPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 			continue;
 		}
 
@@ -145,14 +142,14 @@ void ServerAcceptThread(CCServer* server)
 
 			if (error != SocketError::SOCKET_E_SUCCESS)
 			{
-				std::cout << "Error Receiving DisplayListPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+				LOG_ERROR << "Error Receiving DisplayListPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 				failed = true;
 				break;
 			}
 
 			if (received != sizeof(DisplayListDisplayPacket) || displayPacket.MagicNumber != P_MAGIC_NUMBER)
 			{
-				std::cout << "Invalid DisplayListDisplayPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+				LOG_ERROR << "Invalid DisplayListDisplayPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 				failed = true;
 				break;
 			}
@@ -168,18 +165,24 @@ void ServerAcceptThread(CCServer* server)
 			entity->AddDisplay(newDisplay);
 		}
 
+		error = udpRemoteClientSocket->Connect();
+		if (error != SocketError::SOCKET_E_SUCCESS)
+		{
+			LOG_ERROR << "Error Trying To Connect UDP Socket: " << SOCK_ERR_STR(udpRemoteClientSocket, error) << std::endl;
+			failed = true;
+		}
 		// if we failed getting the display list, give up on this client / let them retry with a new connection
 
 		if (failed)
 			continue;
 
-		server->discoverer->NewEntityDiscovered(entity);
+		_discoverer->NewEntityDiscovered(entity);
 
 		error = acceptedSocket->Close();
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
 			// very strange if we hit here.
-			std::cout << "Error Closing Accepted Socket: " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Error Closing Accepted Socket: " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
 		}
 	}
 }

@@ -2,56 +2,48 @@
 #define PACKET_TYPES_H
 #include "OSTypes.h"
 
+enum class EventPacketType : unsigned char
+{
+    MouseMove = 0,
+    MouseButton = 1,
+    MouseWheel = 2,
+    Key = 3,
+    INVALID = 255
+};
+
 /* This file includes all type definitions for Packets that are sent accross the network */
 
-enum EventPacketType
+struct OSInputEventPacket
 {
-    EVENT_PACKET_MM = 0,
-    EVENT_PACKET_MB = 1,
-    EVENT_PACKET_MW = 2,
-    EVENT_PACKET_K = 3,
-    EVENT_PACKET_INVALID
-};
+    union {
+        int16_t posX;
+        int16_t wheelData;
 
-struct EventPacketHeader
-{
-    uint8_t incomming_event_type; 
-    EventPacketHeader();
-    EventPacketHeader(EventPacketType type);
-};
+        uint16_t mouseButton;
+        uint16_t scancode;
+        uint16_t data1;
+    };
+    union {
+        int16_t posY;
+        uint16_t isDown;
+        uint16_t data2;
+    };
+    union {
+        int16_t deltaX;
+        int16_t data3;
+    };
+    union {
+        int16_t deltaY;
+        int16_t data4;
+    };
 
-struct MouseMoveEventPacket
-{
-    uint16_t posX;
-    uint16_t posY;
     uint16_t nativeScreenID;
+    EventPacketType eventType;
 
-    MouseMoveEventPacket();
-    MouseMoveEventPacket(const OSEvent& event);
-};
+    OSInputEventPacket();
+    OSInputEventPacket(const OSEvent& event);
 
-struct MouseButtonEventPacket
-{
-    uint8_t mouseButton;
-    uint8_t isDown;
-    MouseButtonEventPacket();
-    MouseButtonEventPacket(const OSEvent& event);
-};
-
-struct MouseWheelEventPacket
-{
-    int8_t wheel_data;
-    MouseWheelEventPacket();
-    MouseWheelEventPacket(const OSEvent& event);
-};
-
-struct KeyEventPacket
-{
-    // only down or up
-    uint8_t keyEvent;
-    uint16_t scancode;
-    KeyEventPacket();
-    KeyEventPacket(const OSEvent& event);
+    OSEvent AsOSEvent()const;
 };
 
 #endif

@@ -23,6 +23,7 @@ enum class SocketError
     SOCKET_E_NETWORK,
     SOCKET_E_OS_ERROR,
     SOCKET_E_NOT_IMPLEMENTED,
+    SOCKET_E_INVALID_PACKET,
     SOCKET_E_UNKOWN
 };
 
@@ -30,7 +31,7 @@ extern int OSGetLastError();
 extern const std::string SockErrorToString(SocketError err);
 extern const std::string OSErrorToString(int os_err);
 extern SocketError OSErrorToSocketError(int os_err);
-extern std::string FormatedStringWithSocketAndSocketError(Socket *socket, SocketError error);
+extern std::string FormatedStringWithSocketAndSocketError(const Socket *socket, SocketError error);
 
 #define OS_OR_SOCK_ERR OSErrorToSocketError(OSGetLastError())
 #define SOCK_ERR(X) OSErrorToSocketError(X)

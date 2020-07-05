@@ -18,6 +18,7 @@ private:
     std::vector<IOSEventReceiver*> eventReceivers;
 
     OSInterface();
+    ~OSInterface();
 
     static OSInterface sharedInterface;
 public:
@@ -31,6 +32,7 @@ public:
      * weird normalizing system for mouse events
      */
     OSInterfaceError ConvertEventToNativeCoords(const OSEvent inEvent, OSEvent& outEvent);
+
     /*
      * Hides the mouse if {hideMouse} is true or unhides the mouse
      *
@@ -43,6 +45,10 @@ public:
      * This is different from SendMouseEvent because OSEvents always work in deltas and this a position to set not a delta
      */
     OSInterfaceError SetMousePosition(int posX, int posY);
+    /*
+     * Injects {osEvent} into OS using the correct corresponding Function
+     */
+    OSInterfaceError SendOSEvent(const OSEvent& osEvent);
     /*
      * Injects {mouseEvent} into OS as if it was given by a USB mouse
      */

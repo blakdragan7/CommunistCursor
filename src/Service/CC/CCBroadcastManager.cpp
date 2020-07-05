@@ -1,18 +1,18 @@
 #include "CCBroadcastManager.h"
 
-#include <iostream>
+#include "CCLogger.h"
 
 #include "../Socket/SocketError.h"
 #include "../Socket/Socket.h"
 
 #include "CCPacketTypes.h"
 
-CCBroadcastManager::CCBroadcastManager() : shouldBroadcast(false)
+CCBroadcastManager::CCBroadcastManager() : _shouldBroadcast(false)
 {
 }
 
 CCBroadcastManager::CCBroadcastManager(std::string broadcastAddress, int broadcastPort) :
-_internalSocket(new Socket(broadcastAddress, broadcastPort, false,  SocketProtocol::SOCKET_P_UDP)), shouldBroadcast(false)
+_internalSocket(new Socket(broadcastAddress, broadcastPort, false,  SocketProtocol::SOCKET_P_UDP)), _shouldBroadcast(false)
 {
 }
 
@@ -31,7 +31,7 @@ bool CCBroadcastManager::BroadcastNow(std::string serverAddress, int serverPort)
 
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		std::cout << "Error trying to send Broadcast " << SockErrorToString(error) << std::endl;
+		LOG_ERROR << "Error trying to send Broadcast " << SockErrorToString(error) << std::endl;
 		return false;
 	}
 
@@ -40,17 +40,20 @@ bool CCBroadcastManager::BroadcastNow(std::string serverAddress, int serverPort)
 
 void CCBroadcastManager::StopBroadcasting()
 {
-	shouldBroadcast = false;
+	_shouldBroadcast = false;
 }
 
 bool CCBroadcastManager::ListenForBroadcasts(BServerAddress* foundAddress)
 {
-	SocketError error = _internalSocket->Bind();
-
-	if (error != SocketError::SOCKET_E_SUCCESS)
+	if (_internalSocket->GetIsBound() == false)
 	{
-		std::cout << "Error Bind Client Broadcast Socket: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
-		return false;
+		SocketError error = _internalSocket->Bind();
+
+		if (error != SocketError::SOCKET_E_SUCCESS)
+		{
+			LOG_ERROR << "Error Bind Client Broadcast Socket: " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
+			return false;
+		}
 	}
 
 	size_t received = 0;
