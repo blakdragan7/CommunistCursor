@@ -11,12 +11,14 @@
 #include "../Socket/SocketException.h"
 #include "../OSInterface/OSInterface.h"
 
+#include "../Dispatcher/DispatchManager.h"
+
 #include <algorithm>
 #include <sstream>
 #include <chrono>
 #include <thread>
 
-#define REGISTER_OS_EVENTS 0
+#define REGISTER_OS_EVENTS 1
 
 #define DELTA_X_MAX 200
 #define DELTA_Y_MAX 200
@@ -270,8 +272,6 @@ void CCMain::LoadAll(std::string path)
 		{
 			entity->LoadFrom(_configManager);
 		}
-
-		_currentMouseOffsets = _localEntity->GetBounds().topLeft;
 	}
 	else
 	{
@@ -375,8 +375,6 @@ const std::vector<int>& CCMain::GetGlobalBounds() const
 
 void CCMain::EntitiesFinishedConfiguration()
 {
-	_currentMouseOffsets = _localEntity->GetOffsets();
-
 	SetupEntityConnections();
 
 	SaveAll();
@@ -385,7 +383,9 @@ void CCMain::EntitiesFinishedConfiguration()
 bool CCMain::ReceivedNewInputEvent(OSEvent event)
 {
 	bool isMove = false;
-	Point OffsetPos = _currentMousePosition + _currentMouseOffsets;
+
+	int origX = event.x;
+	int origY = event.y;
 
 	// check if we should skep or if the mouse moved more then we think it should
 	if (_ignoreInputEvent || abs(event.deltaX) > DELTA_X_MAX || abs(event.deltaY) > DELTA_Y_MAX)
@@ -402,32 +402,9 @@ bool CCMain::ReceivedNewInputEvent(OSEvent event)
 			_currentMousePosition.x += event.deltaX;
 			_currentMousePosition.y += event.deltaY;
 
-			OffsetPos = _currentMousePosition + _currentMouseOffsets;
-			if (_localEntity != _currentEntity)
-			{
-				Rect bounds = _currentEntity->GetBounds();
-				Point offsets = _currentEntity->GetOffsets();
-
-				int x = event.x - _currentMouseOffsets.x;
-				int y = event.y - _currentMouseOffsets.y;
-
-				if (abs(x - bounds.topLeft.x) < 20 || abs(x - bounds.bottomRight.x) < 20 || \
-					abs(y - bounds.topLeft.y) < 20 || abs(y - bounds.bottomRight.y) < 20)
-				{
-					_localEntity->RPC_SetMousePosition(0.5f, 0.5f);
-					_ignoreInputEvent = true;
-				}
-
-				event.x = ((OffsetPos.x - bounds.topLeft.x) + offsets.x) - ;
-				event.y = ((OffsetPos.y - bounds.topLeft.y) + offsets.y);
-			}
-
 			isMove = true;
 		}
 	}
-	else // always set offset pos
-		OffsetPos = _currentMousePosition + _currentMouseOffsets;
-	
 
 	if (event.eventType == OS_EVENT_KEY && event.scanCode == 69 /* PAUSE/BREAK button */)
 	{
@@ -439,13 +416,11 @@ bool CCMain::ReceivedNewInputEvent(OSEvent event)
 		return false;
 	}
 	
-
+	Point offsetPos = _currentMousePosition;
 	JumpDirection direction;
 	CCNetworkEntity* nextEntity = 0;
-	if (_currentEntity->GetEntityForPointInJumpZone(OffsetPos, &nextEntity, direction))
+	if (_currentEntity->GetEntityForPointInJumpZone(offsetPos, &nextEntity, direction))
 	{
-		_currentMousePosition = OffsetPos - _currentMouseOffsets;
-
 		// we have a jump zone
 		LOG_INFO << "Jump To " << nextEntity->GetID() << std::endl;
 				
@@ -464,19 +439,51 @@ bool CCMain::ReceivedNewInputEvent(OSEvent event)
 		nextEntity->RPC_UnhideMouse();
 
 		_currentEntity = nextEntity;
+
+		_currentMousePosition = offsetPos;
+
+		if (_currentEntity->GetIsLocal())
+		{
+			OSEvent localEvent;
+			localEvent.eventType = OS_EVENT_MOUSE;
+			localEvent.mouseEvent = MOUSE_EVENT_MOVE;
+			localEvent.x = _currentMousePosition.x;
+			localEvent.y = _currentMousePosition.y;
+
+			LOG_DEBUG << "Warping Local With Event " << localEvent << std::endl; 
+
+			DISPATCH_ASYNC([localEvent]() 
+			{OSInterface::SharedInterface().SendMouseEvent(localEvent); })
+
+			_ignoreInputEvent = true;
+		}
 	}
 
-	if (_currentEntity->GetIsLocal()) return false;
-
-	LOG_INFO << "Sending Event " << event << std::endl;
-
-	SocketError error = _currentEntity->SendOSEvent(event);
-	if (error != SocketError::SOCKET_E_SUCCESS)
+	if (_currentEntity->GetIsLocal())
 	{
-		LOG_ERROR << "Error Sending Event To " << _currentEntity->GetID() << " Error: " << SOCK_ERR_STR(_currentEntity->GetUDPSocket(), error) << std::endl;
+		_currentMousePosition.x = origX;
+		_currentMousePosition.y = origY;
+
+		return false;
+	}
+	else if (isMove)
+	{
+		Rect bounds = _localEntity->GetBounds();
+
+		if (abs(origX - bounds.topLeft.x) < 20 || abs(origX - bounds.bottomRight.x) < 20 || \
+			abs(origY - bounds.topLeft.y) < 20 || abs(origY - bounds.bottomRight.y) < 20)
+		{
+			_localEntity->RPC_SetMousePosition(0.5f, 0.5f);
+			_ignoreInputEvent = true;
+		}
+
+		event.x = _currentMousePosition.x;
+		event.y = _currentMousePosition.y;
 	}
 
-	return true && !isMove;
+	_currentEntity->SendOSEvent(event);
+
+	return false;
 }
 
 // move these somewhere else later

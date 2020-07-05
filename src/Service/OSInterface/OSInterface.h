@@ -12,15 +12,15 @@ class IOSEventReceiver;
 class OSInterface
 {
 private:
-    bool hasHookedEvents;
-    bool shouldRunMainloop;
-    std::mutex mapAccessMutex;
-    std::vector<IOSEventReceiver*> eventReceivers;
+    bool _hasHookedEvents;
+    bool _shouldRunMainloop;
+    std::mutex _mapAccessMutex;
+    std::vector<IOSEventReceiver*> _eventReceivers;
 
     OSInterface();
     ~OSInterface();
 
-    static OSInterface sharedInterface;
+    static OSInterface _sharedInterface;
 public:
     
     static OSInterface& SharedInterface();

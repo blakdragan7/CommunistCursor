@@ -8,14 +8,14 @@
 
 #define SLEEPM(a) std::this_thread::sleep_for(std::chrono::milliseconds(a));
 
-OSInterface OSInterface::sharedInterface;
+OSInterface OSInterface::_sharedInterface;
 
 OSInterface& OSInterface::SharedInterface()
 {
-    return sharedInterface;
+    return _sharedInterface;
 }
 
-OSInterface::OSInterface() :shouldRunMainloop(true), hasHookedEvents(false)
+OSInterface::OSInterface() :_shouldRunMainloop(true), _hasHookedEvents(false)
 {
     int ret = StartupOSConnection();
     if (ret != 0)
@@ -102,7 +102,7 @@ OSInterfaceError OSInterface::SendKeyEvent(OSEvent keyEvent)
 
 OSInterfaceError OSInterface::RegisterForOSEvents(IOSEventReceiver* newReceiver)
 {
-    if(hasHookedEvents == false)
+    if(_hasHookedEvents == false)
     {
         int res = NativeRegisterForOSEvents(this);
         if(res != 0)
@@ -111,33 +111,29 @@ OSInterfaceError OSInterface::RegisterForOSEvents(IOSEventReceiver* newReceiver)
             return OSErrorToOSInterfaceError(res);
         }
             
-        hasHookedEvents = true;
+        _hasHookedEvents = true;
     }
 
-    while(mapAccessMutex.try_lock() == false)SLEEPM(1);
+    std::lock_guard<std::mutex> lock(_mapAccessMutex);
     
-    eventReceivers.push_back(newReceiver);
+    _eventReceivers.push_back(newReceiver);
 
-    mapAccessMutex.unlock();
-    
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
 OSInterfaceError OSInterface::UnRegisterForOSEvents(IOSEventReceiver* toRemove)
 {
-    while(mapAccessMutex.try_lock() == false)SLEEPM(1);
+    std::lock_guard<std::mutex> lock(_mapAccessMutex);
 
-    auto itr = std::find(eventReceivers.begin(), eventReceivers.end(), toRemove);
+    auto itr = std::find(_eventReceivers.begin(), _eventReceivers.end(), toRemove);
 
-    if (itr != eventReceivers.end())
+    if (itr != _eventReceivers.end())
     {
-        eventReceivers.erase(itr);
-        mapAccessMutex.unlock();
+        _eventReceivers.erase(itr);
         return OSInterfaceError::OS_E_SUCCESS;
     }
     else
     {
-        mapAccessMutex.unlock();
         return OSInterfaceError::OS_E_NOT_REGISTERED;
     }
 }
@@ -206,32 +202,30 @@ OSInterfaceError OSInterface::GetLocalHostName(std::string& hostName)
 
 void OSInterface::OSMainLoop()
 {
-    ::OSMainLoop(shouldRunMainloop);
+    ::OSMainLoop(_shouldRunMainloop);
 }
 
 void OSInterface::StopMainLoop()
 {
     // probably wrap this in mutex
-    shouldRunMainloop = false;
+    _shouldRunMainloop = false;
 }
 
 bool OSInterface::ConsumeInputEvent(OSEvent event)
 {
-    while(mapAccessMutex.try_lock() == false)SLEEPM(1);
+    std::lock_guard<std::mutex> lock(_mapAccessMutex);
 
     bool shouldConsumeEvent = false;
 
     // If any of the receivers request it we consume the event (generally speaking there will only ever be one)
 
-    for(IOSEventReceiver* receiver : eventReceivers)
+    for(IOSEventReceiver* receiver : _eventReceivers)
     {
         if (receiver->ReceivedNewInputEvent(event))
         {
             shouldConsumeEvent = true;
         }
     }
-
-    mapAccessMutex.unlock();
 
     return shouldConsumeEvent;
 }
@@ -249,20 +243,20 @@ std::ostream& operator<<(std::ostream& os, const OSEvent& event)
     case OS_EVENT_MOUSE:
         if (event.mouseEvent == MOUSE_EVENT_MOVE)
         {
-            return os << "{ type: " << "Mouse Move Event " << "pos {" << event.x << "," << event.y << "}" << " delta {" << event.deltaX << "," << event.deltaY << "}";
+            return os << "{ type: " << "[Mouse Move Event] " << "pos [" << event.x << "," << event.y << "]" << " delta [" << event.deltaX << "," << event.deltaY << "] }";
         }
         else if (event.mouseEvent == MOUSE_EVENT_DOWN || event.mouseEvent == MOUSE_EVENT_UP)
         {
-            return os << "{ type: " << "Mouse Button Event {isDown: " << \
-                ((event.mouseEvent == MOUSE_EVENT_DOWN) ? " True " : "False ") << " button: " \
-                << MouseButtonToString(event.mouseButton) << "}";
+            return os << "{ type: " << "[Mouse Button Event] isDown: [" << \
+                ((event.mouseEvent == MOUSE_EVENT_DOWN) ? " True] " : "False] ") << "button: [" \
+                << MouseButtonToString(event.mouseButton) << "] }";
         }
         else if (event.mouseEvent == MOUSE_EVENT_SCROLL)
         {
-            return os << "{ type: " << "Mouse Wheel Event { wheelData: " << event.extendButtonInfo << "}";
+            return os << "{ type: " << "[Mouse Wheel Event] { wheelData: [" << event.extendButtonInfo << "] }";
         }
     case OS_EVENT_KEY:
-        return os << "{" << "type:" << "Key Event" << " subType:" \
+        return os << "{" << "type:" << "[Key Event]" << " subType:" \
         << KeyEventTypeToString(event.keyEvent) << " scaneCode:" << event.scanCode; 
     case OS_EVENT_HID:
     case OS_EVENT_INVALID:

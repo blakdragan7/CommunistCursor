@@ -28,9 +28,3 @@ bool CCDisplay::PointIsInBounds(const Point& p)const
     return _bounds.topLeft.x <= p.x && _bounds.topLeft.y <= p.y \
     && _bounds.bottomRight.x >= p.x && _bounds.bottomRight.y >= p.y;
 }
-
-void CCDisplay::SetOffsets(int offsetX, int offsetY)
-{
-    _bounds.topLeft = {_display.posX + offsetX, _display.posY + offsetY};
-    _bounds.bottomRight = { _bounds.topLeft.x + _display.width, _bounds.topLeft.y + _display.height };
-}

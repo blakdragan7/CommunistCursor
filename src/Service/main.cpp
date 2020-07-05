@@ -12,6 +12,8 @@
 
 #include "CC/CCLogger.h"
 
+#include "Dispatcher/DispatchManager.h"
+
 #include "CC/CCMain.h"
 #include "CC/CCDisplay.h"
 #include "CC/CCNetworkEntity.h"
@@ -37,6 +39,10 @@ bool shouldPause = false;
 int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
+
+    DispatchManager::manager.SetupThreads();
+
+    //CCLogger::logger.SetLogLevel(LogLevel::None);
 
     int res = ParaseArguments(argc,argv);
 
@@ -72,6 +78,8 @@ int main(int argc, char* argv[])
     }
 
     Socket::OSSocketTeardown();
+
+    DispatchManager::manager.TerminateAllThreads();
 
     return 0;
 }

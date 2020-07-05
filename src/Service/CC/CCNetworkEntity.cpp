@@ -7,6 +7,8 @@
 #include "../OSInterface/PacketTypes.h"
 #include "../OSInterface/OSInterface.h"
 
+#include "../Dispatcher/DispatchManager.h"
+
 #include "CCPacketTypes.h"
 #include "CCDisplay.h"
 #include "CCLogger.h"
@@ -38,7 +40,8 @@ void from_json(const json& j, Rect& p)
     j.at("bottomRight").get_to(p.bottomRight);
 }
 
-int CCNetworkEntity::_jumpBuffer = 20;
+int CCNetworkEntity::_jumpBuffer = 5;
+int CCNetworkEntity::_collisionBuffer = 100;
 
 SocketError CCNetworkEntity::SendRPCOfType(TCPPacketType rpcType, void* data, size_t dataSize)
 {
@@ -164,12 +167,12 @@ CCNetworkEntity::~CCNetworkEntity()
     ShutdownThreads();
 }
 
-SocketError CCNetworkEntity::SendOSEvent(const OSEvent& event)
+void CCNetworkEntity::SendOSEvent(const OSEvent& event)
 {
     if (_isLocalEntity)
     {
         LOG_ERROR << "Trying to send Event to Local Entity !" << std::endl;
-        return SocketError::SOCKET_E_SUCCESS;
+        return;
     }
 
     std::lock_guard<std::mutex> lock(_tcpMutex);
@@ -177,25 +180,41 @@ SocketError CCNetworkEntity::SendOSEvent(const OSEvent& event)
     if (_tcpCommSocket->GetIsConnected() == false)
     {
         SocketError error = _tcpCommSocket->Connect();
-        if(error != SocketError::SOCKET_E_SUCCESS)
-            return error;
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error Connecting tcp socket Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            return;
+        }
     }
 
     NETCPPacketHeader header((char)TCPPacketType::OSEventHeader);
-    SocketError ret = _tcpCommSocket->Send(&header, sizeof(header));
-    if (ret != SocketError::SOCKET_E_SUCCESS)
-        return ret;
-    ret = WaitForAwk(_tcpCommSocket.get());
-    if (ret != SocketError::SOCKET_E_SUCCESS)
-        return ret;
+    SocketError error = _tcpCommSocket->Send(&header, sizeof(header));
+    if (error != SocketError::SOCKET_E_SUCCESS)
+    {
+        LOG_ERROR << "Error sending NETCPPacketHeader Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        return;
+    }
+
+    error = WaitForAwk(_tcpCommSocket.get());
+    if (error != SocketError::SOCKET_E_SUCCESS)
+    {
+        LOG_ERROR << "Error waiting for client Awk Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        return;
+    }
 
     OSInputEventPacket packet(event);
 
-    ret = _tcpCommSocket->Send(&packet, sizeof(packet));
-    if (ret != SocketError::SOCKET_E_SUCCESS)
-        return ret;
+    error = _tcpCommSocket->Send(&packet, sizeof(packet));
+    if (error != SocketError::SOCKET_E_SUCCESS)
+    {
+        LOG_ERROR << "Error sending OSInputEventPacket Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        return;
+    }
 
-    return WaitForAwk(_tcpCommSocket.get());
+    error = WaitForAwk(_tcpCommSocket.get());
+    {
+        LOG_ERROR << "Error waiting for client Awk Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+    }
 }
 
 SocketError CCNetworkEntity::ReceiveOSEvent(Socket* socket, OSEvent& newEvent)
@@ -239,23 +258,6 @@ void CCNetworkEntity::RemoveDisplay(std::shared_ptr<CCDisplay> display)
 void CCNetworkEntity::SetDisplayOffsets(Point offsets)
 {
     _offsets = offsets;
-
-    _totalBounds.topLeft.x      =  400000;
-    _totalBounds.topLeft.y      =  400000;
-    _totalBounds.bottomRight.x  = -400000;
-    _totalBounds.bottomRight.y  = -400000;
-
-    for (auto display : _displays)
-    {
-        display->SetOffsets(_offsets.x, _offsets.y);
-
-        auto displayBounds = display->GetCollision();
-
-        _totalBounds.topLeft.x = std::min(displayBounds.topLeft.x, _totalBounds.topLeft.x);
-        _totalBounds.topLeft.y = std::min(displayBounds.topLeft.y, _totalBounds.topLeft.y);
-        _totalBounds.bottomRight.x = std::max(displayBounds.bottomRight.x, _totalBounds.bottomRight.x);
-        _totalBounds.bottomRight.y = std::max(displayBounds.bottomRight.y, _totalBounds.bottomRight.y);
-    }
 }
 
 const std::shared_ptr<CCDisplay> CCNetworkEntity::DisplayForPoint(const Point& point)const
@@ -271,45 +273,46 @@ const std::shared_ptr<CCDisplay> CCNetworkEntity::DisplayForPoint(const Point& p
 
 bool CCNetworkEntity::PointIntersectsEntity(const Point& p) const
 {
-    for (auto display : _displays)
-    {
-        if (display->PointIsInBounds(p))
-            return true;
-    }
+    Rect collision = _totalBounds;
 
-    return false;
+    return collision.topLeft.x <= p.x && collision.topLeft.y <= p.y \
+        && collision.bottomRight.x >= p.x && collision.bottomRight.y >= p.y;;
 }
 
 void CCNetworkEntity::AddEntityIfInProximity(CCNetworkEntity* entity)
 {
-    Rect collision = entity->_totalBounds;
+    Rect collision = _totalBounds;
+    Rect otherCollision = entity->_totalBounds;
 
     collision.topLeft = collision.topLeft + _offsets;
     collision.bottomRight = collision.bottomRight + _offsets;
 
+    otherCollision.topLeft = otherCollision.topLeft + entity->_offsets;
+    otherCollision.bottomRight = otherCollision.bottomRight + entity->_offsets;
+
     // create test collision Rects, possibly cache these
 
-    Rect top = { {collision.topLeft.x, collision.topLeft.y + _jumpBuffer}, {collision.bottomRight.x, collision.topLeft.y} };
-    Rect bottom = { {collision.topLeft.x, collision.bottomRight.y}, {collision.bottomRight.x, collision.bottomRight.y - _jumpBuffer} };
-    Rect left   = { {collision.topLeft.x - _jumpBuffer, collision.topLeft.y}, {collision.topLeft.x, collision.bottomRight.y} };
-    Rect right  = { {collision.bottomRight.x, collision.topLeft.y}, {collision.bottomRight.x + _jumpBuffer, collision.bottomRight.y} };
+    Rect top = { {collision.topLeft.x, collision.topLeft.y + _collisionBuffer}, {collision.bottomRight.x, collision.topLeft.y} };
+    Rect bottom = { {collision.topLeft.x, collision.bottomRight.y}, {collision.bottomRight.x, collision.bottomRight.y - _collisionBuffer} };
+    Rect left   = { {collision.topLeft.x - _collisionBuffer, collision.topLeft.y}, {collision.topLeft.x, collision.bottomRight.y} };
+    Rect right  = { {collision.bottomRight.x, collision.topLeft.y}, {collision.bottomRight.x + _collisionBuffer, collision.bottomRight.y} };
 
-    if (collision.IntersectsRect(top))
+    if (otherCollision.IntersectsRect(top))
     {
         _topEntites.push_back(entity);
         entity->_bottomEntites.push_back(this);
     }
-    if (collision.IntersectsRect(bottom))
+    if (otherCollision.IntersectsRect(bottom))
     {
         _bottomEntites.push_back(entity);
         entity->_topEntites.push_back(this);
     }
-    if (collision.IntersectsRect(left))
+    if (otherCollision.IntersectsRect(left))
     {
         _leftEntites.push_back(entity);
         entity->_rightEntites.push_back(this);
     }
-    if (collision.IntersectsRect(right))
+    if (otherCollision.IntersectsRect(right))
     {
         _rightEntites.push_back(entity);
         entity->_leftEntites.push_back(this);
@@ -505,11 +508,13 @@ void CCNetworkEntity::TCPCommThread()
 
                         LOG_INFO << osEvent << std::endl;
 
-                        auto osError = OSInterface::SharedInterface().SendOSEvent(osEvent);
-                        if (osError != OSInterfaceError::OS_E_SUCCESS)
-                        {
-                            LOG_ERROR << "Error Trying To Inject OS Event" << osEvent << " with error " << OSInterfaceErrorToString(osError) << std::endl;
-                        }
+                        DISPATCH_ASYNC([osEvent]() {
+                            auto osError = OSInterface::SharedInterface().SendOSEvent(osEvent);
+                            if (osError != OSInterfaceError::OS_E_SUCCESS)
+                            {
+                                LOG_ERROR << "Error Trying To Inject OS Event" << osEvent << " with error " << OSInterfaceErrorToString(osError) << std::endl;
+                            }
+                        })
                     }
                     break;
                 }
@@ -591,16 +596,18 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
 {
     Rect collision = _totalBounds;
 
-    collision.topLeft = collision.topLeft + _offsets;
-    collision.bottomRight = collision.bottomRight + _offsets;
-
     if (p.y < (collision.topLeft.y + _jumpBuffer))
     {
         for (auto entity : _topEntites)
         {
+            p.x = entity->_totalBounds.topLeft.x + p.x - collision.topLeft.x + \
+                _offsets.x - entity->_offsets.x;
+            p.y = entity->_totalBounds.bottomRight.y - _jumpBuffer;
+
+           // LOG_DEBUG << "Checking Point " << p << std::endl;
+
             if (entity->PointIntersectsEntity({ p.x, p.y - _jumpBuffer }))
             {
-                p.y -= _jumpBuffer;
                 *jumpEntity = entity;
                 direction = JumpDirection::UP;
                 return true;
@@ -611,9 +618,13 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
     {
         for (auto entity : _bottomEntites)
         {
+            p.x = entity->_totalBounds.topLeft.x + p.x - collision.topLeft.x + \
+                _offsets.x - entity->_offsets.x;
+            p.y = entity->_totalBounds.bottomRight.y + _jumpBuffer;
+
+            //LOG_DEBUG << "Checking Point " << p << std::endl;
             if (entity->PointIntersectsEntity({ p.x, p.y + _jumpBuffer }))
             {
-                p.y += _jumpBuffer;
                 *jumpEntity = entity;
                 direction = JumpDirection::DOWN;
                 return true;
@@ -624,9 +635,12 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
     {
         for (auto entity : _leftEntites)
         {
+            p.x = entity->_totalBounds.bottomRight.x - _jumpBuffer;
+            p.y = entity->_totalBounds.topLeft.y + p.y - collision.topLeft.y + \
+                _offsets.y - entity->_offsets.y;
+           //LOG_DEBUG << "Checking Point " << p << std::endl;
             if (entity->PointIntersectsEntity({ p.x - _jumpBuffer, p.y }))
             {
-                p.x -= _jumpBuffer;
                 *jumpEntity = entity;
                 direction = JumpDirection::LEFT;
                 return true;
@@ -637,9 +651,12 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
     {
         for (auto entity : _rightEntites)
         {
+            p.x = entity->_totalBounds.topLeft.x + _jumpBuffer;
+            p.y = entity->_totalBounds.topLeft.y + p.y - collision.topLeft.y + \
+                _offsets.y - entity->_offsets.y;
+            //LOG_DEBUG << "Checking Point " << p << std::endl;
             if (entity->PointIntersectsEntity({ p.x + _jumpBuffer, p.y }))
             {
-                p.y = +_jumpBuffer;
                 *jumpEntity = entity;
                 direction = JumpDirection::RIGHT;
                 return true;
@@ -648,5 +665,5 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
     }
 
     // no jump zone
-    return nullptr;
+    return false;
 }

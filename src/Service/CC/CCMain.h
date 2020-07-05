@@ -40,7 +40,6 @@ private:
 	std::vector<int>			_globalBounds;
 	
 	Point						_currentMousePosition;
-	Point						_currentMouseOffsets;
 
 	bool						_serverShouldRun;
 	bool						_clientShouldRun;

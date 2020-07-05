@@ -43,4 +43,6 @@ struct Rect
     }
 };
 
+extern std::ostream& operator <<(std::ostream& os, const Point& p);
+
 #endif

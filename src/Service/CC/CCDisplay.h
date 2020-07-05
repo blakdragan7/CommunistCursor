@@ -25,8 +25,6 @@ public:
     void SetBounds(const Point& topLeft);
     // returns if p is within bounds using box collision
     bool PointIsInBounds(const Point& p)const;
-    // sets the bounds using nativeDisplay.x + {offsetX} and same for y
-    void SetOffsets(int offsetX, int offsetY);
 
     // Getter for the native display, mainly used for UI
     const NativeDisplay& GetNativeDisplay()const { return _display; }

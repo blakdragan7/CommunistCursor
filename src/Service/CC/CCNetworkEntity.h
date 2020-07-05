@@ -76,6 +76,7 @@ private:
     std::vector<CCNetworkEntity*> _rightEntites;
 
     static int _jumpBuffer;
+    static int _collisionBuffer;
 
 private:
     // Some Helper Functions
@@ -90,7 +91,7 @@ public:
     CCNetworkEntity(std::string entityID, Socket* socket);
     ~CCNetworkEntity();
     // converts event into the appropriate packet and sends it over with a header
-    SocketError SendOSEvent(const OSEvent& event);
+    void SendOSEvent(const OSEvent& event);
 
     // This will add the display to the internal displays vector
     void AddDisplay(std::shared_ptr<CCDisplay> display);
