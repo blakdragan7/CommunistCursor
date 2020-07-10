@@ -2,7 +2,7 @@
 
 CCLogger CCLogger::logger;
 
-CCLogger::CCLogger() : _logLevel(LogLevel::Info), _funcLogLevel(LogLevel::Info), _ostream(std::cout)
+CCLogger::CCLogger() : _logLevel(LogLevel::Debug), _funcLogLevel(LogLevel::Debug), _ostream(std::cout)
 {
 
 }

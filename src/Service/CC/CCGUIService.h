@@ -14,7 +14,6 @@ private:
 	std::unique_ptr<Socket> _serverSocket;
 
 	IGuiServiceInterface*	_delegate;
-	std::thread				_serverSocketThread;
 
 	bool					_shouldRunServer;
 

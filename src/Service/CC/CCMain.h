@@ -3,7 +3,6 @@
 
 #include <vector>
 #include <memory>
-#include <thread>
 #include <mutex>
 
 #include "../OSInterface/IOSEventReceiver.h"
@@ -13,6 +12,7 @@
 #include "INetworkEntityDelegate.h"
 #include "CCConfigurationManager.h"
 #include "IGuiServiceInterface.h"
+#include "CCBroadcastManager.h"
 #include "CCGUIService.h"
 
 #include "BasicTypes.h"
@@ -23,6 +23,9 @@ class CCNetworkEntity;
 class CCMain : public INetworkEntityDiscovery, public IOSEventReceiver, public IGuiServiceInterface, public INetworkEntityDelegate
 {
 private:
+	std::vector<CCBroadcastManager>					_broadcasters;
+	std::vector<std::string>						_ipAddress;
+
 	std::vector<std::shared_ptr<CCNetworkEntity>>	_entites;
 	std::vector<CCNetworkEntity*>					_lostEntites;
 	std::mutex										_entitesAccessMutex;
@@ -31,7 +34,9 @@ private:
 	std::shared_ptr<CCNetworkEntity> _localEntity;
 	CCNetworkEntity*				 _currentEntity;
 
-	std::thread					_serverBroadcastThread;
+	unsigned						_serverBroadcastQueue;
+	unsigned						_inputQueue;
+
 	std::unique_ptr<CCServer>	_server;
 	std::unique_ptr<CCClient>	_client;
 
@@ -51,6 +56,11 @@ private:
 private:
 	void SetupEntityConnections();
 	void RemoveLostEntites();
+
+	void BroadcastAll();
+
+	bool ProcessInputEvent(OSEvent osEvent);
+	void SetupLocalEntity(bool isServer);
 
 public:
 	CCMain();

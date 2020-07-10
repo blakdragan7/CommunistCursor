@@ -23,6 +23,8 @@ private:
 public:
 	CCBroadcastManager();
 	CCBroadcastManager(std::string broadcastAddress, int broadcastPort);
+	CCBroadcastManager(CCBroadcastManager&&) = default;
+	void operator=(CCBroadcastManager&&)noexcept;
 
 	// Broadcasts the {serverAddress} and {serverPort} to broadcastAddress on broadcastPort
 	// returns false on failure to braodcast

@@ -84,9 +84,132 @@ void CCMain::RemoveLostEntites()
 	SetupEntityConnections();
 }
 
-CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)),
-_clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this), \
-_configFile("cc.json"), _ignoreInputEvent(false)
+void CCMain::BroadcastAll()
+{
+	// broadcase to every possible network we can.
+	// this will be configurable later
+	for (int i = 0; i < _broadcasters.size(); i++)
+	{
+		// If we fail to broadcase we remove it from the list of broadcasters and
+		// break here to wait to start the loop again so we don't cause any
+		// weird issues with looping through a vector while modifying it
+		if (_broadcasters[i].BroadcastNow(_ipAddress[i], 6555) == false)
+		{
+			_broadcasters.erase(_broadcasters.begin() + i);
+			_ipAddress.erase(_ipAddress.begin() + i);
+			break;
+		}
+	}
+
+	// remove all queued lost entites
+	RemoveLostEntites();
+
+	if (_serverShouldRun)
+	{
+		DISPATCH_AFTER_SERIAL(std::chrono::seconds(5),
+		_serverBroadcastQueue, std::bind(&CCMain::BroadcastAll, this))
+	}
+}
+
+bool CCMain::ProcessInputEvent(OSEvent event)
+{
+	typedef std::chrono::duration<float> fsec;
+
+	bool isMove = false;
+
+	int origX = event.x;
+	int origY = event.y;
+
+	// check if we should skep or if the mouse moved more then we think it should
+	if (_ignoreInputEvent || abs(event.deltaX) > DELTA_X_MAX || abs(event.deltaY) > DELTA_Y_MAX)
+	{
+		LOG_INFO << "Skipping event " << event << std::endl;
+		_ignoreInputEvent = false;
+		return false;
+	}
+
+	if (event.eventType == OS_EVENT_MOUSE)
+	{
+		if (event.mouseEvent == MOUSE_EVENT_MOVE)
+		{
+			_currentMousePosition.x += event.deltaX;
+			_currentMousePosition.y += event.deltaY;
+
+			isMove = true;
+		}
+	}
+
+	Point offsetPos = _currentMousePosition;
+	JumpDirection direction;
+	CCNetworkEntity* nextEntity = 0;
+	if (_currentEntity->GetEntityForPointInJumpZone(offsetPos, &nextEntity, direction))
+	{
+		// we have a jump zone
+		LOG_INFO << "Jump To " << nextEntity->GetID() << std::endl;
+
+		// hide mouse
+		LOG_INFO << "Hide Mouse Current" << std::endl;
+		_currentEntity->RPC_HideMouse();
+
+		// Force mouse to be in center of screen
+		LOG_INFO << "Warp Current Mouse To Center" << std::endl;
+		_currentEntity->RPC_SetMousePosition(0.5f, 0.5f);
+		if (_currentEntity->GetIsLocal())
+			_ignoreInputEvent = true;
+
+		// unhide mouse of last entity
+		LOG_INFO << "Unhide Mouse Next" << std::endl;
+		nextEntity->RPC_UnhideMouse();
+
+		_currentEntity = nextEntity;
+
+		_currentMousePosition = offsetPos;
+
+		if (_currentEntity->GetIsLocal())
+		{
+			OSEvent localEvent;
+			localEvent.eventType = OS_EVENT_MOUSE;
+			localEvent.mouseEvent = MOUSE_EVENT_MOVE;
+			localEvent.x = _currentMousePosition.x;
+			localEvent.y = _currentMousePosition.y;
+
+			LOG_DEBUG << "Warping Local With Event " << localEvent << std::endl;
+
+			DISPATCH_ASYNC([localEvent]()
+			{OSInterface::SharedInterface().SendMouseEvent(localEvent); })
+
+				_ignoreInputEvent = true;
+		}
+	}
+
+	if (_currentEntity->GetIsLocal())
+	{
+		_currentMousePosition.x = origX;
+		_currentMousePosition.y = origY;
+
+		return false;
+	}
+	else if (isMove)
+	{
+		Rect bounds = _localEntity->GetBounds();
+
+		if (abs(origX - bounds.topLeft.x) < 20 || abs(origX - bounds.bottomRight.x) < 20 || \
+			abs(origY - bounds.topLeft.y) < 20 || abs(origY - bounds.bottomRight.y) < 20)
+		{
+			_localEntity->RPC_SetMousePosition(0.5f, 0.5f);
+			_ignoreInputEvent = true;
+		}
+
+		event.x = _currentMousePosition.x;
+		event.y = _currentMousePosition.y;
+	}
+
+	_currentEntity->SendOSEvent(event);
+
+	return false;
+}
+
+void CCMain::SetupLocalEntity(bool isServer)
 {
 	auto displayList = _client->GetDisplayList();
 
@@ -100,7 +223,7 @@ _configFile("cc.json"), _ignoreInputEvent(false)
 
 	// setup this computers entity
 
-	_localEntity = std::make_shared<CCNetworkEntity>(hostName);
+	_localEntity = std::make_shared<CCNetworkEntity>(hostName, isServer);
 	_currentEntity = _localEntity.get();
 
 	for (auto display : displayList)
@@ -109,6 +232,12 @@ _configFile("cc.json"), _ignoreInputEvent(false)
 	}
 
 	this->NewEntityDiscovered(_localEntity);
+}
+
+CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)),
+_clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this), \
+_configFile("cc.json"), _ignoreInputEvent(false), _serverBroadcastQueue(0)
+{
 }
 
 CCMain::~CCMain()
@@ -121,6 +250,11 @@ CCMain::~CCMain()
 
 void CCMain::StartServerMain()
 {
+	SetupLocalEntity(true);
+
+	_serverBroadcastQueue = CREATE_SERIAL_QUEUE("Server Broadcast Queue");
+	_inputQueue = CREATE_SERIAL_QUEUE("Input Event Queue");
+
 	_serverShouldRun = true;
 	_server->StartServer();
 
@@ -157,15 +291,16 @@ void CCMain::StartServerMain()
 		}
 	}
 
-	std::vector<CCBroadcastManager> broadcasters;
-	broadcasters.reserve(ipAddress.size());
+	_broadcasters.reserve(ipAddress.size());
+	_ipAddress.reserve(ipAddress.size());
 
 	for (auto address : ipAddress)
 	{
 		std::string broadcastAddress = BroadcastAddressFromIPAndSubnetMask(address.address, address.subnetMask);
 
 		LOG_INFO << "New Broadcase Address: " << broadcastAddress << " on port: " << 1046 << std::endl;
-		broadcasters.push_back(CCBroadcastManager(broadcastAddress, 1046));
+		_broadcasters.push_back(CCBroadcastManager(broadcastAddress, 1046));
+		_ipAddress.push_back(address.address);
 	}
 
 	OSInterfaceError err = OSInterface::SharedInterface().GetMousePosition(_currentMousePosition.x, _currentMousePosition.y);
@@ -180,29 +315,8 @@ void CCMain::StartServerMain()
 #if REGISTER_OS_EVENTS
 	OSInterface::SharedInterface().RegisterForOSEvents(this);
 #endif
-	_serverBroadcastThread = std::thread([&broadcasters, &ipAddress, this]() {
-		while (_serverShouldRun)
-		{
-			// broadcase to every possible network we can.
-			// this will be configurable later
-			for (int i = 0; i < broadcasters.size(); i++)
-			{
-				// If we fail to broadcase we remove it from the list of broadcasters and
-				// break here to wait to start the loop again so we don't cause any
-				// weird issues with looping through a vector while modifying it
-				if (broadcasters[i].BroadcastNow(ipAddress[i].address, 6555) == false)
-				{
-					broadcasters.erase(broadcasters.begin() + i);
-					break;
-				}
-			}
-
-			// remove all queued lost entites
-			RemoveLostEntites();
-
-			std::this_thread::sleep_for(std::chrono::seconds(5));
-		}
-	});
+	
+	BroadcastAll();
 
 	OSInterface::SharedInterface().OSMainLoop();
 
@@ -213,6 +327,8 @@ void CCMain::StartServerMain()
 
 void CCMain::StartClientMain()
 {
+	SetupLocalEntity(false);
+
 	CCBroadcastManager broadcastReceiver(SOCKET_ANY_ADDRESS, 1046);
 
 	_clientShouldRun = true;
@@ -237,8 +353,6 @@ void CCMain::StopServer()
 	_serverShouldRun = false;
 
 	OSInterface::SharedInterface().UnRegisterForOSEvents(this);
-
-	_serverBroadcastThread.join();
 }
 
 void CCMain::StopClient()
@@ -382,31 +496,7 @@ void CCMain::EntitiesFinishedConfiguration()
 
 bool CCMain::ReceivedNewInputEvent(OSEvent event)
 {
-	bool isMove = false;
-
-	int origX = event.x;
-	int origY = event.y;
-
-	// check if we should skep or if the mouse moved more then we think it should
-	if (_ignoreInputEvent || abs(event.deltaX) > DELTA_X_MAX || abs(event.deltaY) > DELTA_Y_MAX)
-	{
-		LOG_INFO << "Skipping event " << event << std::endl;
-		_ignoreInputEvent = false;
-		return false;
-	}
-
-	if (event.eventType == OS_EVENT_MOUSE)
-	{
-		if (event.mouseEvent == MOUSE_EVENT_MOVE)
-		{
-			_currentMousePosition.x += event.deltaX;
-			_currentMousePosition.y += event.deltaY;
-
-			isMove = true;
-		}
-	}
-
-	if (event.eventType == OS_EVENT_KEY && event.scanCode == 69 /* PAUSE/BREAK button */)
+	if (event.eventType == OS_EVENT_KEY && event.scanCode == 81 /* Page_Down button */)
 	{
 		_currentEntity = _localEntity.get();
 		_currentEntity->RPC_UnhideMouse();
@@ -415,75 +505,9 @@ bool CCMain::ReceivedNewInputEvent(OSEvent event)
 		_currentMousePosition = bounds.topLeft + ((bounds.bottomRight - bounds.topLeft) / 2);
 		return false;
 	}
-	
-	Point offsetPos = _currentMousePosition;
-	JumpDirection direction;
-	CCNetworkEntity* nextEntity = 0;
-	if (_currentEntity->GetEntityForPointInJumpZone(offsetPos, &nextEntity, direction))
-	{
-		// we have a jump zone
-		LOG_INFO << "Jump To " << nextEntity->GetID() << std::endl;
-				
-		// hide mouse
-		LOG_INFO << "Hide Mouse Current" << std::endl;
-		_currentEntity->RPC_HideMouse();
-					
-		// Force mouse to be in center of screen
-		LOG_INFO << "Warp Current Mouse To Center" << std::endl;
-		_currentEntity->RPC_SetMousePosition(0.5f,0.5f);
-		if (_currentEntity->GetIsLocal())
-			_ignoreInputEvent = true;
+	DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::ProcessInputEvent, this, event))
 
-		// unhide mouse of last entity
-		LOG_INFO << "Unhide Mouse Next" << std::endl;
-		nextEntity->RPC_UnhideMouse();
-
-		_currentEntity = nextEntity;
-
-		_currentMousePosition = offsetPos;
-
-		if (_currentEntity->GetIsLocal())
-		{
-			OSEvent localEvent;
-			localEvent.eventType = OS_EVENT_MOUSE;
-			localEvent.mouseEvent = MOUSE_EVENT_MOVE;
-			localEvent.x = _currentMousePosition.x;
-			localEvent.y = _currentMousePosition.y;
-
-			LOG_DEBUG << "Warping Local With Event " << localEvent << std::endl; 
-
-			DISPATCH_ASYNC([localEvent]() 
-			{OSInterface::SharedInterface().SendMouseEvent(localEvent); })
-
-			_ignoreInputEvent = true;
-		}
-	}
-
-	if (_currentEntity->GetIsLocal())
-	{
-		_currentMousePosition.x = origX;
-		_currentMousePosition.y = origY;
-
-		return false;
-	}
-	else if (isMove)
-	{
-		Rect bounds = _localEntity->GetBounds();
-
-		if (abs(origX - bounds.topLeft.x) < 20 || abs(origX - bounds.bottomRight.x) < 20 || \
-			abs(origY - bounds.topLeft.y) < 20 || abs(origY - bounds.bottomRight.y) < 20)
-		{
-			_localEntity->RPC_SetMousePosition(0.5f, 0.5f);
-			_ignoreInputEvent = true;
-		}
-
-		event.x = _currentMousePosition.x;
-		event.y = _currentMousePosition.y;
-	}
-
-	_currentEntity->SendOSEvent(event);
-
-	return false;
+	return !_currentEntity->GetIsLocal() && !(event.eventType == OS_EVENT_MOUSE && event.mouseEvent == OS_EVENT_MOUSE);
 }
 
 // move these somewhere else later

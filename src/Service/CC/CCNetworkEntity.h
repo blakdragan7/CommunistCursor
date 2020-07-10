@@ -7,7 +7,6 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <thread>
 #include <mutex>
 
 /*
@@ -60,8 +59,9 @@ private:
     std::mutex      _tcpMutex;
 
     // only used client side
-    std::thread _tcpCommThread;
-    bool _shouldBeRunningCommThread;
+    unsigned        _tcpCommQueue;
+    unsigned        _udpCommQueue;
+    bool            _shouldBeRunningCommThread;
 
     // only used server side
     
@@ -82,12 +82,14 @@ private:
     // Some Helper Functions
     bool ShouldRetryRPC(SocketError error)const;
     SocketError SendRPCOfType(TCPPacketType rpcType, void* data = 0, size_t dataSize = 0);
+    SocketError ReceiveOSEvent(std::unique_ptr<Socket>& socket, OSEvent& newEvent);
     SocketError ReceiveOSEvent(Socket* socket, OSEvent& newEvent);
+    SocketError SendAwk(std::unique_ptr<Socket>& socket);
     SocketError SendAwk(Socket* socket);
     SocketError WaitForAwk(Socket* socket);
 
 public:
-    CCNetworkEntity(std::string entityID);
+    CCNetworkEntity(std::string entityID, bool isServer = false);
     CCNetworkEntity(std::string entityID, Socket* socket);
     ~CCNetworkEntity();
     // converts event into the appropriate packet and sends it over with a header
@@ -124,6 +126,7 @@ public:
 
     // Client Functions
     void TCPCommThread();
+    void UDPCommThread();
 
     // Server Functions
     // this is a bad way to do this because it's a thread per NetworkEntity but for now, it will work

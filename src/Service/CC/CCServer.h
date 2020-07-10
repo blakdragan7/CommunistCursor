@@ -13,10 +13,9 @@ class CCServer
 private:
     std::unique_ptr<Socket>                         _internalSocket;
     INetworkEntityDiscovery*                        _discoverer;
-    std::thread                                     _accpetThread;
-    std::thread                                     _heartbeatThread;
 
     bool                                            _isRunning;
+    unsigned                                        _socketAcceptQueue;
 
 public:
     CCServer(int port, std::string listenAddress = "127.0.0.1", INetworkEntityDiscovery* discoverer = 0);
@@ -27,7 +26,7 @@ public:
 
     bool GetServerIsRunning();
 
-    void ServerAcceptThread();
+    void AcceptServerSocket();
 };
 
 #endif

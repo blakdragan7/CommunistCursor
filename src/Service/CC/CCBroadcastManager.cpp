@@ -16,6 +16,13 @@ _internalSocket(new Socket(broadcastAddress, broadcastPort, false,  SocketProtoc
 {
 }
 
+void CCBroadcastManager::operator=(CCBroadcastManager&& other)noexcept
+{
+	_internalSocket = std::move(other._internalSocket);
+	_shouldBroadcast = std::move(other._shouldBroadcast);
+	other._shouldBroadcast = false;
+}
+
 bool CCBroadcastManager::BroadcastNow(std::string serverAddress, int serverPort)
 {
 	_internalSocket->SetIsBroadcastable(true);
@@ -45,7 +52,7 @@ void CCBroadcastManager::StopBroadcasting()
 
 bool CCBroadcastManager::ListenForBroadcasts(BServerAddress* foundAddress)
 {
-	if (_internalSocket->GetIsBound() == false)
+	if (_internalSocket->IsBound() == false)
 	{
 		SocketError error = _internalSocket->Bind();
 

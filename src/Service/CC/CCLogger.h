@@ -1,11 +1,12 @@
 #ifndef CC_LOGGER_H
 #define CC_LOGGER_H
 #include <iostream>
+#include <mutex>
 
 enum class LogLevel :int
 {
-	Info =	3,
-	Debug = 2,
+	Debug = 3,
+	Info =	2,
 	Error = 1,
 	None =	0
 };
@@ -13,10 +14,10 @@ enum class LogLevel :int
 class CCLogger
 {
 private:
-	LogLevel _logLevel;
-	LogLevel _funcLogLevel;
-	std::ostream& _ostream;
-
+	LogLevel		_logLevel;
+	LogLevel		_funcLogLevel;
+	std::ostream&	_ostream;
+	std::mutex		_logMutex;
 
 	CCLogger();
 public:
@@ -28,16 +29,21 @@ public:
 	template<typename t>
 	CCLogger& operator <<(const t& other)
 	{
-		if(_funcLogLevel <= _logLevel)
+		if (_funcLogLevel <= _logLevel)
+		{
+			std::lock_guard<std::mutex> lock(_logMutex);
 			_ostream << other;
-
+		}
 		return *this;
 	}
 	typedef std::ostream& (*StandardEndLine)(std::ostream&);
 	CCLogger& operator <<(StandardEndLine endl)
 	{
 		if (_funcLogLevel <= _logLevel)
+		{
+			std::lock_guard<std::mutex> lock(_logMutex);
 			endl(_ostream);
+		}
 
 		return *this;
 	}
