@@ -31,8 +31,7 @@ private:
 private:
 	DispatchQueue* GetConcurentQueueWithLeastJobs();
 
-	bool HasAnyJob();
-	bool GetAnyPendingQueue(DispatchQueue** queue);
+	bool GetAnyPendingQueueWithJob(DispatchQueue** queue, DispatchJob* job);
 	void DequeueThead();
 
 	DispatchManager();
@@ -49,6 +48,20 @@ public:
 	void DispatchConcurent(unsigned int queueID, std::function<void(void)> job);
 	void DispatchSerial(unsigned int queueID, std::function<void(void)> job);
 
+	void DispatchConcurentAfter(Duration, std::function<void(void)> job);
+	void DispatchConcurentAfter(Duration, unsigned int queueID, std::function<void(void)> job);
+	void DispatchSerialAfter(Duration, unsigned int queueID, std::function<void(void)> job);
+
+#if _QUEUE_LOGGING
+	void DispatchConcurent(std::string file, std::string line, std::function<void(void)> job);
+	void DispatchConcurent(std::string file, std::string line, unsigned int queueID, std::function<void(void)> job);
+	void DispatchSerial(std::string file, std::string line, unsigned int queueID, std::function<void(void)> job);
+
+	void DispatchConcurentAfter(std::string file, std::string line, Duration, std::function<void(void)> job);
+	void DispatchConcurentAfter(std::string file, std::string line, Duration, unsigned int queueID, std::function<void(void)> job);
+	void DispatchSerialAfter(std::string file, std::string line, Duration, unsigned int queueID, std::function<void(void)> job);
+#endif
+
 	inline int NumberOfThreads()const { return (int)_threadPool.size(); }
 	inline int NumberOfConcurentQueues()const { return (int)_concurentQueues.size(); }
 	inline int NumberOfSerialQueues()const { return (int)_serialQueues.size(); }
@@ -56,8 +69,33 @@ public:
 	static DispatchManager manager;
 };
 
+#if _QUEUE_LOGGING
+#ifdef _WIN32
+#define __FILENAME__ (strrchr(__FILE__, '\\') ? strrchr(__FILE__, '\\') + 1 : __FILE__)
+#else
+#define __FILENAME__ (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
+#endif
+#define DISPATCH_ASYNC(job)DispatchManager::manager.DispatchConcurent(std::string(__FILENAME__), std::to_string(__LINE__), job);
+#define DISPATCH_ASYNC_ID(id, job)DispatchManager::manager.DispatchConcurent(std::string(__FILENAME__), std::to_string(__LINE__), id, job);
+#define DISPATCH_ASYNC_SERIAL(id, job)DispatchManager::manager.DispatchSerial(std::string(__FILENAME__), std::to_string(__LINE__), id, job);
+
+#define DISPATCH_AFTER(time, job)DispatchManager::manager.DispatchConcurentAfter(std::string(__FILENAME__), std::to_string(__LINE__), time, job);
+#define DISPATCH_AFTER_ID(time, id, job)DispatchManager::manager.DispatchConcurentAfter(std::string(__FILENAME__), std::to_string(__LINE__), time, id, job);
+#define DISPATCH_AFTER_SERIAL(time, id, job)DispatchManager::manager.DispatchSerialAfter(std::string(__FILENAME__), std::to_string(__LINE__), time, id, job);
+
+#else
+
 #define DISPATCH_ASYNC(job)DispatchManager::manager.DispatchConcurent(job);
 #define DISPATCH_ASYNC_ID(id, job)DispatchManager::manager.DispatchConcurent(id, job);
 #define DISPATCH_ASYNC_SERIAL(id, job)DispatchManager::manager.DispatchSerial(id, job);
+
+#define DISPATCH_AFTER(time, job)DispatchManager::manager.DispatchConcurentAfter(time, job);
+#define DISPATCH_AFTER_ID(time, id, job)DispatchManager::manager.DispatchConcurentAfter(time, id, job);
+#define DISPATCH_AFTER_SERIAL(time, id, job)DispatchManager::manager.DispatchSerialAfter(time, id, job);
+
+#endif
+
+#define CREATE_CONCURENT_QUEUE(name)DispatchManager::manager.CreateConcurentQueue(name)
+#define CREATE_SERIAL_QUEUE(name)DispatchManager::manager.CreateSerialQueue(name)
 
 #endif

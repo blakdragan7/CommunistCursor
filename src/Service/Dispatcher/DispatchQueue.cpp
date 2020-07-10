@@ -1,10 +1,15 @@
 #include "DispatchQueue.h"
+#include "../CC/CCLogger.h"
+
+#include <assert.h>
+#include <iostream>
 
 DispatchQueue::DispatchQueue(bool isSerial) : _isSerial(isSerial), _isRunningJob(false)
 {
 }
 
-DispatchQueue::DispatchQueue(bool isSerial, std::string name) : _isSerial(isSerial), _name(name),  _isRunningJob(false)
+DispatchQueue::DispatchQueue(bool isSerial, std::string name) : _isSerial(isSerial),
+_name(name),  _isRunningJob(false)
 {
 }
 
@@ -17,32 +22,72 @@ DispatchQueue::DispatchQueue(bool isSerial, std::string name) : _isSerial(isSeri
 void DispatchQueue::AddJob(DispatchJob& job)
 {
 	std::lock_guard<std::mutex> lock(_queueMutex);
-	_queue.push(job);
+#ifdef _DEBUG
+	job._owner = this;
+	_queue.push_back({ job });
+#else
+	_queue.push_back({ job });
+#endif
 }
 
-void DispatchQueue::AddJob(std::function<void(void)> job)
+void DispatchQueue::AddJob(Duration future, std::function<void(void)> job)
 {
 	std::lock_guard<std::mutex> lock(_queueMutex);
-	_queue.push(job);
+#ifdef _DEBUG
+	_queue.push_back({ future, job, this });
+#else
+	_queue.push_back({ future, job });
+#endif
 }
 
-void DispatchQueue::DequeueJob()
+#if _QUEUE_LOGGING
+void DispatchQueue::AddJob(std::string file, std::string line, Duration future, std::function<void(void)> job)
 {
-	DispatchJob job;
-	{ // we only want to lock accessing the que
-		std::lock_guard<std::mutex> lock(_queueMutex);
+	std::lock_guard<std::mutex> lock(_queueMutex);
+#ifdef _DEBUG
+	_queue.push_back({ file, line, future, job, this });
+#else
+	_queue.push_back({ file, line, future, job });
+#endif
+}
+#endif
 
-		// is there anything to do
-		if (_queue.empty())
-			return;
+void DispatchQueue::RunJob(DispatchJob& job)
+{
+#ifdef _DEBUG
+	assert(job._owner == this);
+#endif
 
-		_isRunningJob = true;
+#ifdef _QUEUE_LOGGING
+	LOG_DEBUG << "Queue \"" << _name << "\" Performing {" << job._file << ":" << job._line << "}" << std::endl;
+#endif // _QUEUE_LOGGING
 
-		job = _queue.front();
-		_queue.pop();
+	// run the job
+	job();
+	_isRunningJob = false;
+}
+
+bool DispatchQueue::GetRunnableJob(DispatchJob* outJob)
+{
+	if (_isSerial && _isRunningJob)
+		return false;
+
+	std::lock_guard<std::mutex> lock(_queueMutex);
+
+	if (!_queue.empty())
+	{
+		auto itr = std::find_if(_queue.begin(), _queue.end(), 
+			[](const DispatchJob& job) {return job.CanRun(); });
+
+		if (itr != _queue.end())
+		{
+			*outJob = *itr;
+			_queue.erase(itr);
+			_isRunningJob = true;
+			return true;
+		}
+		return false;
 	}
 
-	job();
-
-	_isRunningJob = false;
+	return false;
 }
