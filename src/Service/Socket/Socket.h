@@ -5,6 +5,7 @@
 
 #include <string>
 #include <vector>
+#include <chrono>
 
 #include "SocketError.h"
 
@@ -30,6 +31,8 @@ enum class SocketDisconectType
     SDT_ALL
 };
 
+typedef std::chrono::steady_clock::duration WaitDuration;
+
 class Socket
 {
 private:
@@ -37,18 +40,19 @@ private:
 
     bool _isBindable; // used internally for socket options
     bool _useIPV6; // wether or not to attempt to use an IPV6 address
+    bool _isBlocking; // wether or not the socket is in blocking mode
 
     void* _internalSockInfo; // used to add a little bit of efficiency 
 
-    int port; // the port this socket is connected to
-    NativeSocketHandle sfd; // changes what it represents based on OS
-    bool isBound; // wether or not this socket is bound to a port
-    bool isConnected; // essentially used with tcp connections
-    bool isListening; // wether or not Listen has been called succesfully
-    bool isBroadcast; // wether or not this is a broadcast socket
-    std::string address; // the address this socket either connects to or binds to
+    int _port; // the port this socket is connected to
+    NativeSocketHandle _sfd; // changes what it represents based on OS
+    bool _isBound; // wether or not this socket is bound to a port
+    bool _isConnected; // essentially used with tcp connections
+    bool _isListening; // wether or not Listen has been called succesfully
+    bool _isBroadcast; // wether or not this is a broadcast socket
+    std::string _address; // the address this socket either connects to or binds to
 
-    SocketProtocol protocol; // the current protocol to use
+    SocketProtocol _protocol; // the current protocol to use
 
 private:
     /* Creates a socket and stores the pointer to sfd using the class members*/
@@ -62,8 +66,10 @@ private:
     /* User internally with timeout NOT FULLY IMPLEMENTED*/
     SocketError Accept(NativeSocketHandle* acceptedSocket, size_t timeout);
 
+    SocketError ConvertOSError(NativeError error);
+
 public:
-    int lastOSErr; // The last error returned by the OS that was not succesful
+    NativeError lastOSErr; // The last error returned by the OS that was not succesful
 
 public:
     Socket(Socket&& socket)noexcept;
@@ -115,6 +121,26 @@ public:
     SocketError Accept(Socket** acceptedSocket);
     // NOT FULLY IMPLEMENTED WILL ALWAYS RETURN ERROR
     SocketError Accept(Socket** acceptedSocket, size_t timeout);
+    // Get if the socket has data in it's read buffer
+    // Generally used with Non-Blocking Sockets
+    // This will block until completed
+    SocketError HasReadInput(bool& outHasReadInput);
+    // Get if the socket has data in it's read buffer
+    // Generally used with Non-Blocking Sockets
+    // this returns in at most duration time and will return 
+    // SocketError::SOCKET_E_WOULD_BLOCK if it could not complete 
+    // the operation by duration time(the socket was in the middle of something)
+    SocketError HasReadInput(bool& outHasReadInput, WaitDuration  duration);
+    // Get if the socket has data in it's write buffer
+    // Generally used with Non-Blocking Sockets
+    // This will block until completed
+    SocketError HasWriteOutput(bool& outHasWriteOutput);
+    // Get if the socket has data in it's write buffer
+    // Generally used with Non-Blocking Sockets
+    // this returns in at most duration time and will return 
+    // SocketError::SOCKET_E_WOULD_BLOCK if it could not complete 
+    // the operation by duration time(the socket was in the middle of something)
+    SocketError HasWriteOutput(bool& outHasWriteOutput, WaitDuration duration);
     // wait for server to close socket, basically used client side 
     // to wait for the server to finish using the socket, really only matters for tcp sockets
     SocketError WaitForServer();
@@ -127,16 +153,18 @@ public:
 
     // sets the stats of this socket to be able to multicast if true or disables them if false
     SocketError SetIsBroadcastable(bool);
+    SocketError SetIsBlocking(bool isBlocking);
 
     // Getters
 
-    inline bool GetIsListening()const { return isListening; }
-    inline bool GetIsBound()const { return isBound; }
-    inline bool GetIsConnected()const { return isConnected; }
-    inline bool GetIsBradcastable()const { return isBroadcast; }
-    inline bool GetCanUseIPV6()const {return _useIPV6;}
-    inline const std::string& GetAddress()const { return address; }
-    inline const int GetPort()const { return port; }
+    inline bool IsBlocking()const { return _isBlocking; }
+    inline bool IsListening()const { return _isListening; }
+    inline bool IsBound()const { return _isBound; }
+    inline bool IsConnected()const { return _isConnected; }
+    inline bool IsBradcastable()const { return _isBroadcast; }
+    inline bool CanUseIPV6()const {return _useIPV6;}
+    inline const std::string& Address()const { return _address; }
+    inline const int Port()const { return _port; }
 
     /* this must be called before any sockets are created */
     static void OSSocketStartup();

@@ -13,6 +13,10 @@
 #define WSAEADDRINUSE EADDRINUSE
 #endif
 
+#ifndef WSAEWOULDBLOCK
+#define WSAEWOULDBLOCK EWOULDBLOCK
+#endif
+
 #ifndef WSAENETDOWN
 #define WSAENETDOWN ENETDOWN
 #endif
@@ -54,6 +58,8 @@ const std::string SockErrorToString(SocketError err)
             return "Error Binding To Port";
         case SocketError::SOCKET_E_CREATION:
             return "Error Creating Socket";
+        case SocketError::SOCKET_E_WOULD_BLOCK:
+            return "Error Socket Would Block";
         case SocketError::SOCKET_E_ADDR_IN_USE:
             return "Error Address Already In Use";
         case SocketError::SOCKET_E_CONN_REFUSED:
@@ -90,7 +96,7 @@ const std::string SockErrorToString(SocketError err)
     return "Invalid SocketError";
 }
 
-const std::string OSErrorToString(int os_err)
+const std::string OSErrorToString(NativeError os_err)
 {
 #ifdef _WIN32
     return std::to_string(os_err);
@@ -99,7 +105,7 @@ const std::string OSErrorToString(int os_err)
 #endif
 }
 
-SocketError OSErrorToSocketError(int os_err)
+SocketError OSErrorToSocketError(NativeError os_err)
 {
     switch(os_err)
     {
@@ -111,6 +117,8 @@ SocketError OSErrorToSocketError(int os_err)
     case WSAECONNABORTED:
     case WSAECONNRESET:
         return SocketError::SOCKET_E_BROKEN_PIPE;
+    case WSAEWOULDBLOCK:
+        return SocketError::SOCKET_E_WOULD_BLOCK;
     case WSAECONNREFUSED:
         return SocketError::SOCKET_E_CONN_REFUSED;
     case WSAENOTCONN:
@@ -123,6 +131,16 @@ SocketError OSErrorToSocketError(int os_err)
     default:
         return SocketError::SOCKET_E_OS_ERROR;
     }
+}
+
+std::string FormatedStringWithSocketAndSocketError(const std::shared_ptr<Socket>& socket, SocketError error)
+{
+    return FormatedStringWithSocketAndSocketError(socket.get(), error);
+}
+
+std::string FormatedStringWithSocketAndSocketError(const std::unique_ptr<Socket>& socket, SocketError error)
+{
+    return FormatedStringWithSocketAndSocketError(socket.get(), error);
 }
 
 std::string FormatedStringWithSocketAndSocketError(const Socket* socket, SocketError error)

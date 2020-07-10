@@ -2,6 +2,7 @@
 #define SOCKET_ERROR_H
 
 #include <string>
+#include <memory>
 
 class Socket;
 
@@ -12,6 +13,7 @@ enum class SocketError
     SOCKET_E_INITIALIZATION,
     SOCKET_E_CREATION,
     SOCKET_E_BROKEN_PIPE,
+    SOCKET_E_WOULD_BLOCK,
     SOCKET_E_ADDR_IN_USE,
     SOCKET_E_CONN_REFUSED,
     SOCKET_E_NOT_CONNECTED,
@@ -27,10 +29,15 @@ enum class SocketError
     SOCKET_E_UNKOWN
 };
 
+typedef int NativeError;
+
 extern int OSGetLastError();
 extern const std::string SockErrorToString(SocketError err);
-extern const std::string OSErrorToString(int os_err);
-extern SocketError OSErrorToSocketError(int os_err);
+extern const std::string OSErrorToString(NativeError os_err);
+extern SocketError OSErrorToSocketError(NativeError os_err);
+extern std::string FormatedStringWithSocketAndSocketError(const std::shared_ptr<Socket>&, SocketError error);
+extern std::string FormatedStringWithSocketAndSocketError(const std::unique_ptr<Socket>&, SocketError error);
+extern std::string FormatedStringWithSocketAndSocketError(const Socket* socket, SocketError error);
 extern std::string FormatedStringWithSocketAndSocketError(const Socket *socket, SocketError error);
 
 #define OS_OR_SOCK_ERR OSErrorToSocketError(OSGetLastError())

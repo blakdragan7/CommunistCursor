@@ -42,11 +42,14 @@
 #define closesocket close
 #endif
 
+#undef SOCK_ERR
+#define SOCK_ERR ConvertOSError
+
 bool Socket::hasBeenInitialized = false;
 
 Socket::~Socket()
 {
-    if(isConnected)
+    if(_isConnected)
     {
         Disconnect();
     }
@@ -54,7 +57,7 @@ Socket::~Socket()
     if(_internalSockInfo)
         freeaddrinfo((addrinfo*)_internalSockInfo);
     // free socket
-    if(sfd != (NativeSocketHandle)INVALID_SOCKET)
+    if(_sfd != (NativeSocketHandle)INVALID_SOCKET)
         Close();
 }
 
@@ -91,7 +94,7 @@ void Socket::OSSocketTeardown()
 
 SocketError Socket::MakeSocket()
 {
-    sfd = (NativeSocketHandle)INVALID_SOCKET;
+    _sfd = (NativeSocketHandle)INVALID_SOCKET;
 
     SocketError e = MakeInternalSocketInfo();
     if(e != SocketError::SOCKET_E_SUCCESS)
@@ -101,8 +104,8 @@ SocketError Socket::MakeSocket()
 
     struct addrinfo* result = static_cast<addrinfo*>(_internalSockInfo);
 
-    sfd = (NativeSocketHandle)socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-    if(sfd == (NativeSocketHandle)INVALID_SOCKET)
+    _sfd = (NativeSocketHandle)socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+    if(_sfd == (NativeSocketHandle)INVALID_SOCKET)
     {
         freeaddrinfo(result);
         lastOSErr = OSGetLastError();
@@ -127,7 +130,7 @@ SocketError Socket::MakeInternalSocketInfo()
 
     hints.ai_family = _useIPV6 ? AF_INET6 : AF_INET;
 
-    switch(protocol)
+    switch(_protocol)
     {
         case SocketProtocol::SOCKET_P_TCP:
             hints.ai_protocol = IPPROTO_TCP;
@@ -143,17 +146,17 @@ SocketError Socket::MakeInternalSocketInfo()
     addrinfo* result = NULL;
     const char* address_c = NULL;
 
-    if (address == SOCKET_ANY_ADDRESS)
+    if (_address == SOCKET_ANY_ADDRESS)
     {
         address_c = NULL;
         hints.ai_addr = INADDR_ANY;
     }
     else
     {
-       address_c = address.size() > 0 ? address.c_str() : NULL;
+       address_c = _address.size() > 0 ? _address.c_str() : NULL;
     }
 
-    int iresult = getaddrinfo(address_c, std::to_string(port).c_str(), &hints, &result);
+    int iresult = getaddrinfo(address_c, std::to_string(_port).c_str(), &hints, &result);
     if(iresult != 0)
     {
         lastOSErr = iresult;
@@ -168,8 +171,8 @@ SocketError Socket::MakeInternalSocketInfo()
     return SocketError::SOCKET_E_SUCCESS;
 }
 
-Socket::Socket(SocketProtocol protocol, NativeSocketHandle _sfd) : isBroadcast(false), isListening(false), sfd(_sfd), 
-_internalSockInfo(0), _useIPV6(false), _isBindable(false), lastOSErr(0), port(0), isBound(false), isConnected(false), protocol(protocol)
+Socket::Socket(SocketProtocol protocol, NativeSocketHandle _sfd) : _isBlocking(true), _isBroadcast(false), _isListening(false), _sfd(_sfd), 
+_internalSockInfo(0), _useIPV6(false), _isBindable(false), lastOSErr(0), _port(0), _isBound(false), _isConnected(false), _protocol(protocol)
 {
 #ifdef _WIN32
     if(hasBeenInitialized == false)
@@ -179,16 +182,16 @@ _internalSockInfo(0), _useIPV6(false), _isBindable(false), lastOSErr(0), port(0)
 #endif
 }
 
-Socket::Socket(Socket&& socket)noexcept : isBroadcast(socket.isBroadcast), isListening(socket.isListening), address(socket.address), _internalSockInfo(socket._internalSockInfo), 
-_useIPV6(socket._useIPV6), _isBindable(socket._isBindable), protocol(socket.protocol), lastOSErr(socket.lastOSErr), 
-port(socket.port), sfd(socket.sfd), isBound(socket.isBound), isConnected(socket.isConnected)
+Socket::Socket(Socket&& socket)noexcept : _isBlocking(socket._isBlocking), _isBroadcast(socket._isBroadcast), _isListening(socket._isListening), _address(socket._address), _internalSockInfo(socket._internalSockInfo), 
+_useIPV6(socket._useIPV6), _isBindable(socket._isBindable), _protocol(socket._protocol), lastOSErr(socket.lastOSErr), 
+_port(socket._port), _sfd(socket._sfd), _isBound(socket._isBound), _isConnected(socket._isConnected)
 {
     memset(&socket, 0, sizeof(Socket));
-    socket.sfd = (NativeSocketHandle)INVALID_SOCKET;
+    socket._sfd = (NativeSocketHandle)INVALID_SOCKET;
 }
 
-Socket::Socket(const std::string& address, int port, bool useIPV6, SocketProtocol protocol) : isListening(false), address(address), isBroadcast(false),
-_internalSockInfo(0), _useIPV6(useIPV6), _isBindable(false), protocol(protocol), lastOSErr(0), port(port), sfd(0), isBound(false), isConnected(false)
+Socket::Socket(const std::string& address, int port, bool useIPV6, SocketProtocol protocol) : _isBlocking(true), _isListening(false), _address(address), _isBroadcast(false),
+_internalSockInfo(0), _useIPV6(useIPV6), _isBindable(false), _protocol(protocol), lastOSErr(0), _port(port), _sfd(0), _isBound(false), _isConnected(false)
 {
 #ifdef _WIN32
     if(hasBeenInitialized == false)
@@ -204,9 +207,10 @@ _internalSockInfo(0), _useIPV6(useIPV6), _isBindable(false), protocol(protocol),
     }
 }
 
-Socket::Socket(const std::string& address, int port, bool useIPV6, bool isBroadcast, SocketProtocol protocol) : isListening(false), 
-address(address), isBroadcast(false),_internalSockInfo(0), _useIPV6(useIPV6), _isBindable(false), protocol(protocol), lastOSErr(0), 
-port(port), sfd(0), isBound(false), isConnected(false)
+Socket::Socket(const std::string& address, int port, bool useIPV6, bool isBroadcast, SocketProtocol protocol) : \
+_isListening(false), _address(address), _isBroadcast(false),_internalSockInfo(0), _useIPV6(useIPV6), \
+_isBindable(false), _protocol(protocol), lastOSErr(0), _port(port), _sfd(0), _isBound(false),\
+_isConnected(false), _isBlocking(true)
 {
 #ifdef _WIN32
     if (hasBeenInitialized == false)
@@ -237,7 +241,7 @@ SocketError Socket::Connect()
 
     while(addrInfo)
     {
-        iResult = connect((SOCKET)sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
+        iResult = connect((SOCKET)_sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
 
         if(iResult != SOCKET_ERROR)
             break;
@@ -251,7 +255,7 @@ SocketError Socket::Connect()
         return SOCK_ERR(lastOSErr);
     }
 
-    isConnected = true;
+    _isConnected = true;
 
     return SocketError::SOCKET_E_SUCCESS;
 }
@@ -259,7 +263,7 @@ SocketError Socket::Connect()
 SocketError Socket::Connect(int _port)
 {
     if(_port != -1)
-        port = _port;
+        _port = _port;
 
     SocketError e = MakeInternalSocketInfo();
     if(e != SocketError::SOCKET_E_SUCCESS)
@@ -273,7 +277,7 @@ SocketError Socket::Connect(int _port)
 
     while(addrInfo)
     {
-        iResult = connect((SOCKET)sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
+        iResult = connect((SOCKET)_sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
 
         if(iResult != SOCKET_ERROR)
             break;
@@ -287,20 +291,20 @@ SocketError Socket::Connect(int _port)
         return SOCK_ERR(lastOSErr);
     }
 
-    isConnected = true;
+    _isConnected = true;
 
     return SocketError::SOCKET_E_SUCCESS;
 }
 
-SocketError Socket::Connect(const std::string& _address, int _port)
+SocketError Socket::Connect(const std::string& address, int _port)
 {
-    if(address.size() == 0)
+    if(_address.size() == 0)
         return SocketError::SOCKET_E_INVALID_PARAM;
 
     if(_port != -1)
-        port = _port;
+        _port = _port;
 
-    address = _address;
+    _address = address;
 
     SocketError e = MakeInternalSocketInfo();
     if(e != SocketError::SOCKET_E_SUCCESS)
@@ -314,7 +318,7 @@ SocketError Socket::Connect(const std::string& _address, int _port)
 
     while(addrInfo)
     {
-        iResult = connect((SOCKET)sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
+        iResult = connect((SOCKET)_sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
 
         if(iResult != SOCKET_ERROR)
             break;
@@ -330,7 +334,7 @@ SocketError Socket::Connect(const std::string& _address, int _port)
         return SOCK_ERR(lastOSErr);
     }
 
-    isConnected = true;
+    _isConnected = true;
 
     return SocketError::SOCKET_E_SUCCESS;
 }
@@ -342,8 +346,8 @@ SocketError Socket::SendTo(const void* bytes, size_t length)
     struct sockaddr_in send_addr;
 
     send_addr.sin_family = result->ai_family;
-    send_addr.sin_port = htons(port);
-    int res = inet_pton(send_addr.sin_family, address.c_str(), &send_addr.sin_addr.s_addr);
+    send_addr.sin_port = htons(_port);
+    int res = inet_pton(send_addr.sin_family, _address.c_str(), &send_addr.sin_addr.s_addr);
 
     if (res == 0)
     {
@@ -356,7 +360,7 @@ SocketError Socket::SendTo(const void* bytes, size_t length)
         return SOCK_ERR(lastOSErr);
     }
 
-    res = sendto((SOCKET)sfd, (const char*)bytes, (int)length, 0, (sockaddr*)&send_addr, (int)sizeof(send_addr));
+    res = sendto((SOCKET)_sfd, (const char*)bytes, (int)length, 0, (sockaddr*)&send_addr, (int)sizeof(send_addr));
     if (res == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
@@ -387,7 +391,7 @@ SocketError Socket::SendTo(std::string address, int port, const void* bytes, siz
         return SOCK_ERR(lastOSErr);
     }
 
-    res = sendto((SOCKET)sfd, (const char*)bytes, (int)length, 0, (sockaddr*)&send_addr, (int)sizeof(send_addr));
+    res = sendto((SOCKET)_sfd, (const char*)bytes, (int)length, 0, (sockaddr*)&send_addr, (int)sizeof(send_addr));
     if (res == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
@@ -407,10 +411,10 @@ SocketError Socket::Send(const void* bytes, size_t length)
     if(bytes == NULL || length == 0)
         return SocketError::SOCKET_E_INVALID_PARAM;
 
-    if(isConnected == false && protocol != SocketProtocol::SOCKET_P_UDP)
+    if(_isConnected == false && _protocol != SocketProtocol::SOCKET_P_UDP)
         return SocketError::SOCKET_E_NOT_CONNECTED;
 
-    int iResult = send((SOCKET)sfd, (const char*)bytes, (int)length, 0);
+    int iResult = send((SOCKET)_sfd, (const char*)bytes, (int)length, 0);
     if (iResult == SOCKET_ERROR || iResult != length) 
     {
         lastOSErr = OSGetLastError();
@@ -433,10 +437,10 @@ SocketError Socket::Recv(char* buff, size_t buffLength, size_t* receivedLength)
     if(buff == 0 || buffLength == 0 || receivedLength == 0)
         return SocketError::SOCKET_E_INVALID_PARAM;
 
-    if(isConnected == false && protocol != SocketProtocol::SOCKET_P_UDP)
+    if(_isConnected == false && _protocol != SocketProtocol::SOCKET_P_UDP)
         return SocketError::SOCKET_E_NOT_CONNECTED;
 
-    int received = recv((SOCKET)sfd, buff, (int)buffLength, 0);
+    int received = recv((SOCKET)_sfd, buff, (int)buffLength, 0);
     
     if(received == SOCKET_ERROR)
     {
@@ -454,8 +458,13 @@ SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t b
     if (buff == 0 || buffLength == 0 || receivedLength == 0)
         return SocketError::SOCKET_E_INVALID_PARAM;
 
-    if (protocol != SocketProtocol::SOCKET_P_UDP)
+    if (_protocol != SocketProtocol::SOCKET_P_UDP)
         return SocketError::SOCKET_E_INVALID_PROTO;
+
+    if (address == SOCKET_ANY_ADDRESS)
+    {
+        address = "0.0.0.0";
+    }
 
     struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
 
@@ -471,7 +480,7 @@ SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t b
         return SOCK_ERR(lastOSErr);
     }
 
-    int received = recvfrom((SOCKET)sfd, buff, (int)buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
+    int received = recvfrom((SOCKET)_sfd, buff, (int)buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
 
     if (received == SOCKET_ERROR)
     {
@@ -486,12 +495,12 @@ SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t b
 
 SocketError Socket::RecvFrom(char* buff, size_t buffLength, size_t* receivedLength)
 {
-    return RecvFrom(address, port, buff, buffLength, receivedLength);
+    return RecvFrom(_address, _port, buff, buffLength, receivedLength);
 }
 
 SocketError Socket::WaitForServer()
 {
-    if(isConnected == false && protocol != SocketProtocol::SOCKET_P_UDP)
+    if(_isConnected == false && _protocol != SocketProtocol::SOCKET_P_UDP)
         return SocketError::SOCKET_E_NOT_CONNECTED;
 
     // some dumb buff because we dont actually care about the value
@@ -499,7 +508,7 @@ SocketError Socket::WaitForServer()
     int received = 0;
     do
     {
-        received = recv((SOCKET)sfd, buff, (int)sizeof(buff), 0);
+        received = recv((SOCKET)_sfd, buff, (int)sizeof(buff), 0);
     
         if(received == SOCKET_ERROR)
         {
@@ -513,13 +522,13 @@ SocketError Socket::WaitForServer()
 
 SocketError Socket::Close(bool reCreate)
 {
-    int iResult = closesocket((SOCKET)sfd);
+    int iResult = closesocket((SOCKET)_sfd);
     if (iResult == SOCKET_ERROR) {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
     }
 
-    sfd = (NativeSocketHandle)INVALID_SOCKET;
+    _sfd = (NativeSocketHandle)INVALID_SOCKET;
     
     if (reCreate)
     {
@@ -529,7 +538,7 @@ SocketError Socket::Close(bool reCreate)
             return err;
         }
 
-        return SetIsBroadcastable(isBroadcast);
+        return SetIsBroadcastable(_isBroadcast);
     }
 
     return SocketError::SOCKET_E_SUCCESS;
@@ -538,27 +547,40 @@ SocketError Socket::Close(bool reCreate)
 SocketError Socket::SetIsBroadcastable(bool _isBroadcastable)
 {
     // early out if nothing to do
-    if (isBroadcast == _isBroadcastable)
+    if (_isBroadcast == _isBroadcastable)
         return SocketError::SOCKET_E_SUCCESS;
 
     char b = _isBroadcastable ? '1' : '0';
 
     char broadcast = '1';
-    int res = setsockopt((SOCKET)sfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
+    int res = setsockopt((SOCKET)_sfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
     if (res < 0)
     {
         lastOSErr = res;
         return SOCK_ERR(res);
     }
 
-    isBroadcast = _isBroadcastable;
+    _isBroadcast = _isBroadcastable;
 
+    return SocketError::SOCKET_E_SUCCESS;
+}
+
+SocketError Socket::SetIsBlocking(bool isBlocking)
+{
+    u_long iMode = isBlocking ? 0 : 1;
+    int iResult = ioctlsocket((SOCKET)_sfd, FIONBIO, &iMode);
+    if (iResult != NO_ERROR)
+    {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
+    _isBlocking = isBlocking;
     return SocketError::SOCKET_E_SUCCESS;
 }
 
 SocketError Socket::Disconnect(SocketDisconectType sdt)
 {
-    if(isConnected == false)
+    if(_isConnected == false)
         return SocketError::SOCKET_E_NOT_CONNECTED;
 
     int dt;
@@ -578,7 +600,7 @@ SocketError Socket::Disconnect(SocketDisconectType sdt)
         return SocketError::SOCKET_E_INVALID_PARAM;
     }
 
-    int iResult = shutdown((SOCKET)sfd, dt);
+    int iResult = shutdown((SOCKET)_sfd, dt);
     if (iResult == SOCKET_ERROR) {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
@@ -589,26 +611,26 @@ SocketError Socket::Disconnect(SocketDisconectType sdt)
 
 SocketError Socket::Listen()
 {
-    if ( listen((SOCKET)sfd, SOMAXCONN ) == SOCKET_ERROR ) 
+    if ( listen((SOCKET)_sfd, SOMAXCONN ) == SOCKET_ERROR ) 
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);        
     }
 
-    isListening = true;
+    _isListening = true;
 
     return SocketError::SOCKET_E_SUCCESS;
 }
 
 SocketError Socket::Listen(int maxAwaitingConnections)
 {
-    if ( listen((SOCKET)sfd, maxAwaitingConnections ) == SOCKET_ERROR ) 
+    if ( listen((SOCKET)_sfd, maxAwaitingConnections ) == SOCKET_ERROR ) 
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);        
     }
 
-    isListening = true;
+    _isListening = true;
 
     return SocketError::SOCKET_E_SUCCESS;
 }
@@ -621,14 +643,14 @@ SocketError Socket::Bind()
     struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
 
     addr_in.sin_family = result->ai_family;
-    addr_in.sin_port = htons(port);
-    if (address == SOCKET_ANY_ADDRESS)
+    addr_in.sin_port = htons(_port);
+    if (_address == SOCKET_ANY_ADDRESS)
     {
         addr_in.sin_addr.s_addr = INADDR_ANY;
     }
     else
     {
-        iresult = inet_pton(result->ai_family, address.c_str(), &addr_in.sin_addr);
+        iresult = inet_pton(result->ai_family, _address.c_str(), &addr_in.sin_addr);
         if (iresult == SOCKET_ERROR)
         {
             lastOSErr = OSGetLastError();
@@ -636,14 +658,14 @@ SocketError Socket::Bind()
         }
     }
 
-    iresult = bind((SOCKET)sfd, (sockaddr*)&addr_in, sizeof(addr_in));
+    iresult = bind((SOCKET)_sfd, (sockaddr*)&addr_in, sizeof(addr_in));
     if(iresult == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
     }
 
-    isBound = true;
+    _isBound = true;
     
     return SocketError::SOCKET_E_SUCCESS;
 }
@@ -651,7 +673,7 @@ SocketError Socket::Bind()
 SocketError Socket::Bind(int _port)
 {
     if(_port != -1)
-        port = _port;
+        _port = _port;
 
     SocketError e = MakeInternalSocketInfo();
     if(e != SocketError::SOCKET_E_SUCCESS)
@@ -662,7 +684,7 @@ SocketError Socket::Bind(int _port)
     struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
 
     struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
-    int iresult = bind((SOCKET)sfd, result->ai_addr, (int)result->ai_addrlen);
+    int iresult = bind((SOCKET)_sfd, result->ai_addr, (int)result->ai_addrlen);
 
     if(iresult == SOCKET_ERROR)
     {
@@ -670,20 +692,20 @@ SocketError Socket::Bind(int _port)
         return SOCK_ERR(lastOSErr);
     }
 
-    isBound = true;
+    _isBound = true;
 
     return SocketError::SOCKET_E_SUCCESS;
 }
 
-SocketError Socket::Bind(const std::string& _address, int _port)
+SocketError Socket::Bind(const std::string& address, int _port)
 {
-    if(address.size() == 0)
+    if(_address.size() == 0)
         return SocketError::SOCKET_E_INVALID_PARAM;
 
     if(_port != -1)
-        port = _port;
+        _port = _port;
 
-    address = _address;
+    _address = address;
 
     SocketError e = MakeInternalSocketInfo();
     if(e != SocketError::SOCKET_E_SUCCESS)
@@ -694,7 +716,7 @@ SocketError Socket::Bind(const std::string& _address, int _port)
     struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
 
     struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
-    int iresult = bind((SOCKET)sfd, result->ai_addr, (int)result->ai_addrlen);
+    int iresult = bind((SOCKET)_sfd, result->ai_addr, (int)result->ai_addrlen);
 
     if(iresult == SOCKET_ERROR)
     {
@@ -702,7 +724,7 @@ SocketError Socket::Bind(const std::string& _address, int _port)
         return SOCK_ERR(lastOSErr);
     }
 
-    isBound = true;
+    _isBound = true;
 
     return SocketError::SOCKET_E_SUCCESS;
 }
@@ -710,7 +732,7 @@ SocketError Socket::Bind(const std::string& _address, int _port)
 SocketError Socket::Accept(NativeSocketHandle* acceptedSocket)
 {
     *acceptedSocket = (NativeSocketHandle)INVALID_SOCKET;
-    *acceptedSocket = (NativeSocketHandle)accept((SOCKET)sfd, NULL, NULL);
+    *acceptedSocket = (NativeSocketHandle)accept((SOCKET)_sfd, NULL, NULL);
 
     if(*acceptedSocket == (NativeSocketHandle)INVALID_SOCKET)
     {
@@ -724,7 +746,7 @@ SocketError Socket::Accept(NativeSocketHandle* acceptedSocket)
 SocketError Socket::Accept(NativeSocketHandle* acceptedSocket, size_t timeout)
 {
     *acceptedSocket = (NativeSocketHandle)INVALID_SOCKET;
-    *acceptedSocket = (NativeSocketHandle)accept((SOCKET)sfd, NULL, NULL);
+    *acceptedSocket = (NativeSocketHandle)accept((SOCKET)_sfd, NULL, NULL);
 
     if (*acceptedSocket == (NativeSocketHandle)INVALID_SOCKET)
     {
@@ -735,9 +757,22 @@ SocketError Socket::Accept(NativeSocketHandle* acceptedSocket, size_t timeout)
     return SocketError::SOCKET_E_SUCCESS;
 }
 
+SocketError Socket::ConvertOSError(NativeError error)
+{
+    SocketError ret = OSErrorToSocketError(error);
+    // treat would block as a success
+    // _lastOSError will still represent the true error
+    if (ret == SocketError::SOCKET_E_WOULD_BLOCK && !_isBlocking)
+    {
+        ret = SocketError::SOCKET_E_SUCCESS;
+    }
+
+    return ret;
+}
+
 SocketError Socket::Accept(Socket** acceptedSocket)
 {
-    if(isListening == false)
+    if(_isListening == false)
         return SocketError::SOCKET_E_NOT_LISTENING;
 
     NativeSocketHandle newSFD = 0;
@@ -758,17 +793,17 @@ SocketError Socket::Accept(Socket** acceptedSocket)
         return SOCK_ERR(lastOSErr);
     }
 
-    Socket* newSocket = new Socket(this->protocol, newSFD);
+    Socket* newSocket = new Socket(this->_protocol, newSFD);
 
     char newAddress[256] = {0};
 
     inet_ntop(clientInfo.sin_family, (const void*)&clientInfo.sin_addr, newAddress, sizeof(newAddress));
 
-    newSocket->isConnected = true;
-    newSocket->isListening = false;
-    newSocket->isBound = false;
-    newSocket->port = clientInfo.sin_port;
-    newSocket->address = newAddress;
+    newSocket->_isConnected = true;
+    newSocket->_isListening = false;
+    newSocket->_isBound = false;
+    newSocket->_port = clientInfo.sin_port;
+    newSocket->_address = newAddress;
 
     newSocket->_internalSockInfo = 0;
     newSocket->_isBindable = false;
@@ -782,4 +817,88 @@ SocketError Socket::Accept(Socket** acceptedSocket)
 SocketError Socket::Accept(Socket** acceptedSocket, size_t timeout)
 {
     return SocketError::SOCKET_E_NOT_IMPLEMENTED;
+}
+
+SocketError Socket::HasReadInput(bool& outHasReadInput)
+{
+    fd_set set = { 0 };
+    set.fd_count = 1;
+    set.fd_array[0] = (SOCKET)_sfd;
+    int ret = select(NULL, &set, NULL, NULL, NULL);
+    if (ret == SOCKET_ERROR)
+    {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
+    if (ret == 1)
+        return SocketError::SOCKET_E_SUCCESS;
+    if (ret == 0)
+        return SocketError::SOCKET_E_WOULD_BLOCK;
+
+    return SocketError::SOCKET_E_UNKOWN;
+}
+
+SocketError Socket::HasReadInput(bool& outHasReadInput, WaitDuration  duration)
+{
+    struct timeval waitTime = {0};
+    auto miliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    waitTime.tv_sec = (long)(miliseconds.count() / 1000);
+    waitTime.tv_usec = (long)((miliseconds.count() % 1000) * 1000);
+    fd_set set = { 0 };
+    set.fd_count = 1;
+    set.fd_array[0] = (SOCKET)_sfd;
+    int ret = select(NULL, &set, NULL, NULL, &waitTime);
+    if (ret == SOCKET_ERROR)
+    {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
+    if (ret == 1)
+        return SocketError::SOCKET_E_SUCCESS;
+    if (ret == 0)
+        return SocketError::SOCKET_E_WOULD_BLOCK;
+
+    return SocketError::SOCKET_E_UNKOWN;
+}
+
+SocketError Socket::HasWriteOutput(bool& outHasWriteOutput)
+{
+    fd_set set = { 0 };
+    set.fd_count = 1;
+    set.fd_array[0] = (SOCKET)_sfd;
+    int ret = select(NULL, NULL, &set, NULL, NULL);
+    if (ret == SOCKET_ERROR)
+    {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
+    if(ret == 1)
+        return SocketError::SOCKET_E_SUCCESS;
+    if (ret == 0)
+        return SocketError::SOCKET_E_WOULD_BLOCK;
+
+    return SocketError::SOCKET_E_UNKOWN;
+}
+
+SocketError Socket::HasWriteOutput(bool& outHasWriteOutput, WaitDuration  duration)
+{
+    struct timeval waitTime = { 0 };
+    auto miliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    waitTime.tv_sec = (long)(miliseconds.count() / 1000);
+    waitTime.tv_usec = (long)((miliseconds.count() % 1000) * 1000);
+    fd_set set = { 0 };
+    set.fd_count = 1;
+    set.fd_array[0] = (SOCKET)_sfd;
+    int ret = select(NULL, NULL, &set, NULL, &waitTime);
+    if (ret == SOCKET_ERROR)
+    {
+        lastOSErr = OSGetLastError();
+        return SOCK_ERR(lastOSErr);
+    }
+    if (ret == 1)
+        return SocketError::SOCKET_E_SUCCESS;
+    if (ret == 0)
+        return SocketError::SOCKET_E_WOULD_BLOCK;
+
+    return SocketError::SOCKET_E_UNKOWN;
 }
