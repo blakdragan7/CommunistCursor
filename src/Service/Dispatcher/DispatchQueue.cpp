@@ -22,7 +22,7 @@ _name(name),  _isRunningJob(false)
 void DispatchQueue::AddJob(DispatchJob& job)
 {
 	std::lock_guard<std::mutex> lock(_queueMutex);
-#ifdef _DEBUG
+#if _JOB_LOGGING
 	job._owner = this;
 	_queue.push_back({ job });
 #else
@@ -33,7 +33,7 @@ void DispatchQueue::AddJob(DispatchJob& job)
 void DispatchQueue::AddJob(Duration future, std::function<void(void)> job)
 {
 	std::lock_guard<std::mutex> lock(_queueMutex);
-#ifdef _DEBUG
+#if _JOB_LOGGING
 	_queue.push_back({ future, job, this });
 #else
 	_queue.push_back({ future, job });
@@ -54,11 +54,11 @@ void DispatchQueue::AddJob(std::string file, std::string line, Duration future, 
 
 void DispatchQueue::RunJob(DispatchJob& job)
 {
-#ifdef _DEBUG
+#if _JOB_LOGGING && _DEBUG
 	assert(job._owner == this);
 #endif
 
-#ifdef _QUEUE_LOGGING
+#if _QUEUE_LOGGING
 	LOG_DEBUG << "Queue \"" << _name << "\" Performing {" << job._file << ":" << job._line << "}" << std::endl;
 #endif // _QUEUE_LOGGING
 

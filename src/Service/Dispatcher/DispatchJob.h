@@ -6,13 +6,22 @@
 
 #include "../CC/CCLogger.h"
 
+// force job logging on debug
+#ifndef _JOB_LOGGING
+	#ifdef _DEBUG
+		#define _JOB_LOGGING 1
+	#else 
+		#define _JOB_LOGGING 0
+	#endif // _DEBUG
+#endif // _QUEUE_LOGGING
+
 // force queue logging on debug
 #ifndef _QUEUE_LOGGING
-	#ifdef _DEBUG
-		#define _QUEUE_LOGGING 1
-	#else 
-		#define _QUEUE_LOGGING 0
-	#endif // _DEBUG
+#ifdef _DEBUG
+#define _QUEUE_LOGGING 1
+#else 
+#define _QUEUE_LOGGING 0
+#endif // _DEBUG
 #endif // _QUEUE_LOGGING
 
 #define TIME_NOW std::chrono::system_clock::now()
@@ -28,19 +37,19 @@ class DispatchJob
 	std::function<void(void)>	_job;
 	TimePoint					_runnablePoint;
 
-#ifdef _DEBUG
+#if _JOB_LOGGING
 	DispatchQueue*				_owner;
 	TimePoint					_creation;
-#endif // _DEBUG
+#endif // _JOB_LOGGING
 
-#ifdef _QUEUE_LOGGING
+#if _QUEUE_LOGGING
 	std::string					_file;
 	std::string					_line;
 #endif // _QUEUE_LOGGING
 
 	void operator()()
 	{
-#ifdef _DEBUG
+#if _JOB_LOGGING
 		typedef std::chrono::duration<float> fsec;
 		LOG_DEBUG << "Took " << std::chrono::duration_cast<fsec>(TIME_NOW - _creation).count() << " seconds for job to dequeue" << std::endl;
 #endif // _DEBUG
@@ -50,7 +59,7 @@ class DispatchJob
 
 public:
 
-#ifdef _DEBUG
+#if _JOB_LOGGING
 	DispatchJob() : _owner(0), _creation(TIME_NOW), _job(0), _runnablePoint(TIME_NOW) {}
 	DispatchJob(DispatchQueue* owner) : _owner(owner), _creation(TIME_NOW), _job(0), _runnablePoint(TIME_NOW) {}
 	DispatchJob(std::function<void(void)> job, DispatchQueue* owner) : _owner(owner), _creation(TIME_NOW), _runnablePoint(TIME_NOW), _job(job) {}
@@ -65,7 +74,7 @@ public:
 #if _QUEUE_LOGGING
 	DispatchJob(std::string file, std::string line, Duration waitFor, std::function<void(void)> job) : _file(file), _line(line), _job(job), _runnablePoint(TIME_NOW + waitFor) {}
 #endif // _QUEUE_LOGGING
-#endif // _DEBUG
+#endif // _JOB_LOGGING
 
 	inline bool CanRun()const { return _runnablePoint <= TIME_NOW; }
 

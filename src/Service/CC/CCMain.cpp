@@ -505,7 +505,7 @@ bool CCMain::ReceivedNewInputEvent(OSEvent event)
 		_currentMousePosition = bounds.topLeft + ((bounds.bottomRight - bounds.topLeft) / 2);
 		return false;
 	}
-	DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::ProcessInputEvent, this, event))
+	DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::ProcessInputEvent, this, event));
 
 	return !_currentEntity->GetIsLocal() && !(event.eventType == OS_EVENT_MOUSE && event.mouseEvent == OS_EVENT_MOUSE);
 }

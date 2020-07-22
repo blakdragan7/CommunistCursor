@@ -5,10 +5,11 @@
 
 enum class LogLevel :int
 {
-	Debug = 3,
-	Info =	2,
+	Debug = 4,
+	Info  =	3,
+	Warn  = 2,
 	Error = 1,
-	None =	0
+	None  =	0
 };
 
 class CCLogger
@@ -24,6 +25,7 @@ public:
 
 	void Info();
 	void Debug();
+	void Warn();
 	void Error();
 
 	template<typename t>
@@ -48,14 +50,21 @@ public:
 		return *this;
 	}
 
+	void SetLogLevel(std::string level);
 	inline void SetLogLevel(LogLevel level)
 	{_logLevel = level;}
+
+	inline LogLevel GetLogLevel()const
+	{return _logLevel;}
+
+	std::string GetLogLevelAsString()const;
 
 	static CCLogger logger;
 };
 
 #define LOG_INFO CCLogger::logger.Info();CCLogger::logger
 #define LOG_DEBUG CCLogger::logger.Debug();CCLogger::logger
+#define LOG_WARN CCLogger::logger.Warn();CCLogger::logger
 #define LOG_ERROR CCLogger::logger.Error();CCLogger::logger
 
 #endif

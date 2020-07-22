@@ -59,7 +59,7 @@ OSInterfaceError OSInterface::SetMousePosition(int posX, int posY)
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
-OSInterfaceError OSInterface::SendOSEvent(const OSEvent& osEvent)
+OSInterfaceError OSInterface::SendOSEvent(const OSEvent osEvent)
 {
     switch (osEvent.eventType)
     {

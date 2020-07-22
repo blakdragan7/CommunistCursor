@@ -4,6 +4,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
+#include <mutex>
 
 #include <WtsApi32.h>
 
@@ -21,6 +22,9 @@
 
 OSInterface* osi = 0;
 HHOOK mouseHook=0, keyboardHook=0;
+
+
+std::mutex inputMutex;
 
 POINT lastMousePoint = {0};
 
@@ -570,9 +574,11 @@ int SetMousePosition(int x, int y)
 
     newInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
 
-    if (SendInput(1, &newInput, sizeof(INPUT)) != 1)
-        return GetLastError();
-
+    {
+        std::lock_guard<std::mutex> lock(inputMutex);
+        if (SendInput(1, &newInput, sizeof(INPUT)) != 1)
+            return GetLastError();
+    }
     return 0;
 }
 
@@ -643,9 +649,11 @@ int SendMouseEvent(const OSEvent mouseEvent)
 
     newInput.mi.dwFlags = eventType;
 
-    if(SendInput(1, &newInput, sizeof(INPUT)) != 1)
-        return GetLastError();
-    
+    {
+        std::lock_guard<std::mutex> lock(inputMutex);
+        if (SendInput(1, &newInput, sizeof(INPUT)) != 1)
+            return GetLastError();
+    }
     return 0;
 }
 
@@ -667,8 +675,11 @@ int SendKeyEvent(const OSEvent keyEvent)
 
     newInput.mi.dwFlags = KEYEVENTF_SCANCODE | eventType;
 
-    if(SendInput(1, &newInput, sizeof(INPUT)) != 1)
-        return GetLastError();
+    {
+        std::lock_guard<std::mutex> lock(inputMutex);
+        if (SendInput(1, &newInput, sizeof(INPUT)) != 1)
+            return GetLastError();
+    }
     
     return 0;
 }

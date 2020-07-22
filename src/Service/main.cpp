@@ -12,12 +12,13 @@
 
 #include "CC/CCLogger.h"
 
-#include "Dispatcher/DispatchManager.h"
-
 #include "CC/CCMain.h"
 #include "CC/CCDisplay.h"
 #include "CC/CCNetworkEntity.h"
 #include "CC/CCConfigurationManager.h"
+#include "CC/CCLogger.h"
+
+#include "Dispatcher/DispatchManager.h"
 
 class TestEventReceiver : public IOSEventReceiver
 {
@@ -39,10 +40,6 @@ bool shouldPause = false;
 int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
-
-    DispatchManager::manager.SetupThreads();
-
-    //CCLogger::logger.SetLogLevel(LogLevel::None);
 
     int res = ParaseArguments(argc,argv);
 
@@ -79,7 +76,7 @@ int main(int argc, char* argv[])
 
     Socket::OSSocketTeardown();
 
-    DispatchManager::manager.TerminateAllThreads();
+    SHUTDOWN_DISPATCHER;
 
     return 0;
 }
@@ -93,10 +90,13 @@ int ParaseArguments(int argc, char* argv[])
     args::Command testEvent(commandGroup, "test-event", "perform event hooking tests, outputs all events found to stdout");
     args::Command testKey(commandGroup, "test-key", "perform key injection test, will inject scan code 20 into the OS");
     args::Command testMouseMove(commandGroup, "test-mousemove", "Perform mouse injection tests, will move mouse to random location on screen");
-    args::Command run(commandGroup, "run", "Run in standard mode.");
+    args::Command runServer(commandGroup, "runServer", "Run in server mode.");
+    args::Command runClient(commandGroup, "runClient", "Run in client mode.");
     args::Command iservice(commandGroup, "service", "Install as a service");
     args::Group arguments(parser, "arguments", args::Group::Validators::DontCare, args::Options::Global);
-    args::Flag isServer(arguments, "isServer", "forces program to run in server mode, can me used in {run} and {teset-socket} commands", {'s', "server"});
+    args::ValueFlag<std::string> logLevel(arguments, "logLevel", "Sets the log level for the program valid options (VERBOSE, DEBUG, INFO, WARN, ERROR, NONE)", { 'l' });
+    args::ValueFlag<unsigned int> numThreads(arguments, "threads", "Sets the number of threads in the pool. Must be > 0", {'t'});
+    args::Flag isServer(arguments, "isServer", "Set to Server mode for socket test", { 's', "server" });
     args::Flag shouldPause(arguments, "shouldPause", "Pauses at tend of execution", {'p', "pause"});
 
     try
@@ -104,6 +104,25 @@ int ParaseArguments(int argc, char* argv[])
         parser.ParseCLI(argc,argv);
 
         ::shouldPause = shouldPause;
+
+        if (numThreads)
+        {
+            INIT_DISPATCHER_WITH_THREAD_COUNT(args::get(numThreads));
+        }
+        else
+        {
+            INIT_DISPATCHER;
+        }
+
+        if (logLevel)
+        {
+            LOG_INFO << "Setting Log Level To " << args::get(logLevel) << std::endl;
+            CCLogger::logger.SetLogLevel(args::get(logLevel));
+        }
+        else
+        {
+            LOG_INFO << "Setting Log Level To " << CCLogger::logger.GetLogLevelAsString() << std::endl;
+        }
 
         if(testSocket)
         {
@@ -126,10 +145,14 @@ int ParaseArguments(int argc, char* argv[])
             // install service
             return 0;
         }
-        else if(run)
+        else if(runServer)
         {
             // perform standard operation
-            return isServer ? -1 : -2;
+            return -1;
+        }
+        else if (runClient)
+        {
+            return -2;
         }
     }
     catch (args::Help)
@@ -139,12 +162,14 @@ int ParaseArguments(int argc, char* argv[])
     }
     catch (args::ParseError e)
     {
+        ::shouldPause = true;
         LOG_ERROR << e.what() << std::endl;
         LOG_ERROR << parser;
         return 1;
     }
     catch (args::ValidationError e)
     {
+        ::shouldPause = true;
         LOG_ERROR << e.what() << std::endl;
         LOG_ERROR << parser;
         return 1;

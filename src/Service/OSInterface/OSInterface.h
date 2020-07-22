@@ -48,7 +48,7 @@ public:
     /*
      * Injects {osEvent} into OS using the correct corresponding Function
      */
-    OSInterfaceError SendOSEvent(const OSEvent& osEvent);
+    OSInterfaceError SendOSEvent(const OSEvent osEvent);
     /*
      * Injects {mouseEvent} into OS as if it was given by a USB mouse
      */

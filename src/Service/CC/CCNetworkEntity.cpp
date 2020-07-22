@@ -157,7 +157,130 @@ SocketError CCNetworkEntity::WaitForAwk(Socket* socket)
     return error;
 }
 
-CCNetworkEntity::CCNetworkEntity(std::string entityID, bool isServer) : _entityID(entityID), _isLocalEntity(true), \
+SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
+{
+    SocketError error = SocketError::SOCKET_E_SUCCESS;
+    if(server->IsConnected() && _shouldBeRunningCommThread)
+    {
+        LOG_INFO << "while (server->IsConnected() && _shouldBeRunningCommThread) loop start\n";
+
+        NETCPPacketHeader packet;
+        size_t received = 0;
+        error = server->Recv((char*)&packet, sizeof(packet), &received);
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error receiving NETCPPacketHeader from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+            return error;
+        }
+
+        if (received == sizeof(packet) && packet.MagicNumber == P_MAGIC_NUMBER)
+        {
+            error = SendAwk(server);
+
+            if (error != SocketError::SOCKET_E_SUCCESS)
+            {
+                LOG_ERROR << "Error Sending Awk to Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                return error;
+            }
+
+            LOG_INFO << "Received RPC ";
+            switch ((TCPPacketType)packet.Type)
+            {
+            case TCPPacketType::RPC_SetMousePosition:
+                LOG_ERROR << "RPC_SetMousePosition" << std::endl;
+                {
+                    NERPCSetMouseData data;
+                    error = server->Recv((char*)&data, sizeof(data), &received);
+                    if (error != SocketError::SOCKET_E_SUCCESS)
+                    {
+                        LOG_ERROR << "Error receiving NetworkEntityRPCSetMouseData Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                        return error;
+                    }
+                    if (received != sizeof(data))
+                    {
+                        LOG_ERROR << "Error Received invalid NetworkEntityRPCSetMouseData from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                        return error;
+                    }
+
+                    error = SendAwk(server);
+                    if (error != SocketError::SOCKET_E_SUCCESS)
+                    {
+                        LOG_ERROR << "Error Sending Awk to Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                        return error;
+                    }
+
+                    LOG_INFO << "NetworkEntityRPCSetMouseData {" << data.x << "," << data.y << "}" << std::endl;
+                    RPC_SetMousePosition(data.x, data.y);
+                }
+                break;
+            case TCPPacketType::RPC_HideMouse:
+                LOG_INFO << "RPC_HideMouse" << std::endl;
+                RPC_HideMouse();
+                break;
+            case TCPPacketType::RPC_UnhideMouse:
+                LOG_INFO << "RPC_UnhideMouse" << std::endl;
+                RPC_UnhideMouse();
+                break;
+            case TCPPacketType::Heartbeat:
+                LOG_INFO << "Received Heartbeat from server !" << std::endl;
+                break;
+            case TCPPacketType::OSEventHeader:
+                LOG_INFO << "Received OS Event Header from server !" << std::endl;
+                {
+                    OSEvent osEvent;
+
+                    error = ReceiveOSEvent(server, osEvent);
+
+                    if (error != SocketError::SOCKET_E_SUCCESS)
+                    {
+                        LOG_ERROR << "Error receiving OSEvent Data Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                        return error;
+                    }
+
+                    error = SendAwk(server);
+                    if (error != SocketError::SOCKET_E_SUCCESS)
+                    {
+                        LOG_ERROR << "Error Sending Awk to Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                        return error;
+                    }
+
+                    LOG_INFO << osEvent;
+
+                    auto osError = OSInterface::SharedInterface().SendOSEvent(osEvent);
+                    if (osError != OSInterfaceError::OS_E_SUCCESS)
+                    {
+                        LOG_ERROR << "Error Trying To Inject OS Event" << osEvent << " with error " << OSInterfaceErrorToString(osError) << std::endl;
+                        return error;
+                    }
+
+                    LOG_INFO << "Sent Event";
+                }
+                break;
+            }
+        }
+        else
+        {
+            LOG_ERROR << "Received Invalid TCP Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        }
+    }
+
+    return error;
+}
+
+void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
+{
+    if (HandleServerTCPComm(server) != SocketError::SOCKET_E_SUCCESS)
+    {
+        delete server;
+        if (_delegate)
+            _delegate->LostServer();
+        DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::TCPCommThread, this));
+    }
+
+    DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HandleServerTCPCommJob, this, server));
+}
+
+CCNetworkEntity::CCNetworkEntity(std::string entityID, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _isLocalEntity(true), \
 _shouldBeRunningCommThread(true), _delegate(0)
 {
     // this is local so we make the server here
@@ -173,7 +296,7 @@ _shouldBeRunningCommThread(true), _delegate(0)
     }
 }
 
-CCNetworkEntity::CCNetworkEntity(std::string entityID, Socket* socket) : _entityID(entityID), _udpCommSocket(socket),\
+CCNetworkEntity::CCNetworkEntity(std::string entityID, Socket* socket) : _tcpCommQueue(0), _entityID(entityID), _udpCommSocket(socket),\
 _isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0)
 {
     // this is a remote entity so we create a tcp client here
@@ -248,11 +371,11 @@ void CCNetworkEntity::SendOSEvent(const OSEvent& event)
         return;
     }
 
-    /*error = WaitForAwk(_tcpCommSocket.get());
+    error = WaitForAwk(_tcpCommSocket.get());
     if(error !=SocketError::SOCKET_E_SUCCESS)
     {
         LOG_ERROR << "Error waiting for client Awk Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
-    }*/
+    }
 }
 
 SocketError CCNetworkEntity::ReceiveOSEvent(Socket* socket, OSEvent& newEvent)
@@ -470,127 +593,19 @@ void CCNetworkEntity::TCPCommThread()
 
     Socket* pserver = NULL;
     error = _tcpCommSocket->Accept(&pserver);
-    // ensure memory gets released no matter what
-    std::unique_ptr<Socket> server(pserver);
 
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
         LOG_ERROR << "Error accepting server connection: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
     }
 
-    while (server->IsConnected() && _shouldBeRunningCommThread)
-    {
-        NETCPPacketHeader packet;
-        size_t received = 0;
-        error = server->Recv((char*)&packet, sizeof(packet), &received);
-        if (error != SocketError::SOCKET_E_SUCCESS)
-        {
-            LOG_ERROR << "Error receiving NETCPPacketHeader from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
-            break;
-        }
-            
-        if (received == sizeof(packet) && packet.MagicNumber == P_MAGIC_NUMBER)
-        {
-            error = SendAwk(server);
-            if (error != SocketError::SOCKET_E_SUCCESS)
-            {
-                LOG_ERROR << "Error Sending Awk to Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
-                break;
-            }
-
-            LOG_INFO << "Received RPC ";
-            switch ((TCPPacketType)packet.Type)
-            {
-            case TCPPacketType::RPC_SetMousePosition:
-                LOG_ERROR << "RPC_SetMousePosition" << std::endl;
-                {
-                    NERPCSetMouseData data;
-                    error = server->Recv((char*)&data, sizeof(data), &received);
-                    if (error != SocketError::SOCKET_E_SUCCESS)
-                    {
-                        LOG_ERROR << "Error receiving NetworkEntityRPCSetMouseData Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
-                        break;
-                    }
-                    if (received != sizeof(data))
-                    {
-                        LOG_ERROR << "Error Received invalid NetworkEntityRPCSetMouseData from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
-                        break;
-                    }
-
-                    error = SendAwk(server);
-                    if (error != SocketError::SOCKET_E_SUCCESS)
-                    {
-                        LOG_ERROR << "Error Sending Awk to Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
-                        break;
-                    }
-
-                    LOG_INFO << "NetworkEntityRPCSetMouseData {" << data.x << "," << data.y << "}" << std::endl;
-                    RPC_SetMousePosition(data.x, data.y);
-                }
-                break;
-            case TCPPacketType::RPC_HideMouse:
-                LOG_INFO << "RPC_HideMouse" << std::endl;
-                RPC_HideMouse();
-                break;
-            case TCPPacketType::RPC_UnhideMouse:
-                LOG_INFO << "RPC_UnhideMouse" << std::endl;
-                RPC_UnhideMouse();
-                break;
-            case TCPPacketType::Heartbeat:
-                LOG_INFO << "Received Heartbeat from server !" << std::endl;
-                break;
-            case TCPPacketType::OSEventHeader:
-                LOG_INFO << "Received OS Event Header from server !" << std::endl;
-                {
-                    OSEvent osEvent;
-
-                    error = ReceiveOSEvent(server, osEvent);
-
-                    if (error != SocketError::SOCKET_E_SUCCESS)
-                    {
-                        LOG_ERROR << "Error receiving OSEvent Data Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
-                        break;
-                    }
-
-                    error = SendAwk(server);
-                    if (error != SocketError::SOCKET_E_SUCCESS)
-                    {
-                        LOG_ERROR << "Error Sending Awk to Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
-                        break;
-                    }
-
-                    LOG_INFO << osEvent << std::endl;
-
-                    auto osError = OSInterface::SharedInterface().SendOSEvent(osEvent);
-                    if (osError != OSInterfaceError::OS_E_SUCCESS)
-                    {
-                        LOG_ERROR << "Error Trying To Inject OS Event" << osEvent << " with error " << OSInterfaceErrorToString(osError) << std::endl;
-                    }
-                }
-                break;
-            }
-        }
-        else
-        {
-            LOG_ERROR << "Received Invalid TCP Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
-            break;
-        }
-            
-    }
-    
-    if (_delegate)
-        _delegate->LostServer();
-    
-    if (_shouldBeRunningCommThread)
-    {
-        DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::TCPCommThread, this));
-    }
+    DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HandleServerTCPCommJob, this, pserver));
 }
 
 void CCNetworkEntity::UDPCommThread()
 {
     SocketError error = SocketError::SOCKET_E_SUCCESS;
-    if (_tcpCommSocket->IsConnected() == false)
+    if (_udpCommSocket->IsBound() == false)
     {
         error = _udpCommSocket->Bind();
         if (error != SocketError::SOCKET_E_SUCCESS)

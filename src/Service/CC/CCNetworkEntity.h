@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+#include <atomic>
 
 /*
 *
@@ -59,9 +60,9 @@ private:
     std::mutex      _tcpMutex;
 
     // only used client side
-    unsigned        _tcpCommQueue;
-    unsigned        _udpCommQueue;
-    bool            _shouldBeRunningCommThread;
+    unsigned           _tcpCommQueue;
+    unsigned           _udpCommQueue;
+    std::atomic<bool>  _shouldBeRunningCommThread;
 
     // only used server side
     
@@ -87,6 +88,8 @@ private:
     SocketError SendAwk(std::unique_ptr<Socket>& socket);
     SocketError SendAwk(Socket* socket);
     SocketError WaitForAwk(Socket* socket);
+    SocketError HandleServerTCPComm(Socket* server);
+    void HandleServerTCPCommJob(Socket* server);
 
 public:
     CCNetworkEntity(std::string entityID, bool isServer = false);

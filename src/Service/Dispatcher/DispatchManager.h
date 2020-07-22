@@ -98,4 +98,9 @@ public:
 #define CREATE_CONCURENT_QUEUE(name)DispatchManager::manager.CreateConcurentQueue(name)
 #define CREATE_SERIAL_QUEUE(name)DispatchManager::manager.CreateSerialQueue(name)
 
+#define INIT_DISPATCHER DispatchManager::manager.SetupThreads();
+#define INIT_DISPATCHER_WITH_THREAD_COUNT(count) DispatchManager::manager.SetupThreads(count);
+
+#define SHUTDOWN_DISPATCHER DispatchManager::manager.TerminateAllThreads();
+
 #endif
