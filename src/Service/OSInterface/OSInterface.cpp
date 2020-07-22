@@ -155,6 +155,14 @@ OSInterfaceError OSInterface::GetIPAddressList(std::vector<IPAdressInfo>& outAdd
     return OSErrorToOSInterfaceError(OSError);
 }
 
+OSInterfaceError OSInterface::GetClipboardData(ClipboardData& outData)
+{
+    int OSError = ::GetClipBoard(outData);
+    if (OSError == 0)
+        return OSInterfaceError::OS_E_SUCCESS;
+    return OSErrorToOSInterfaceError(OSError);
+}
+
 OSInterfaceError OSInterface::GetMousePosition(int& xPos, int& yPos)
 {
     int ret = ::GetMousePosition(xPos, yPos);

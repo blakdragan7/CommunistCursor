@@ -79,6 +79,11 @@ public:
      *  returns a OSInterfaceError
      */
     OSInterfaceError GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfoHints hints = {});
+    
+    /*
+     *  Gets the clipbaord data from OS
+     */
+    OSInterfaceError GetClipboardData(ClipboardData& outData);
     /*
      * Gets the current mouse cursor position
      *

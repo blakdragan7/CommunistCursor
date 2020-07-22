@@ -410,6 +410,50 @@ int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfo
     return 0;
 }
 
+int GetClipBoard(ClipboardData& outData)
+{
+    if (windowHandle == INVALID_HANDLE_VALUE)
+        return -1;
+
+    size_t tries = 3;
+    while (OpenClipboard(windowHandle) == FALSE)
+    {
+        if (--tries <= 0)
+        {
+            return GetLastError();
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    }
+
+    /*UINT format = EnumClipboardFormats(NULL);
+
+    if (format == NULL)
+    {
+        // no data
+        return -2;
+    }
+
+    char formatName[256] = { 0 };
+
+    GetClipboardFormatName(format, formatName, 256);*/
+
+    HANDLE cHandle = GetClipboardData(CF_TEXT);
+
+    if (cHandle == NULL)
+        return GetLastError();
+
+    LPVOID data = GlobalLock(cHandle);
+
+    outData.stringData = (char*)data;
+
+    GlobalUnlock(cHandle);
+
+    CloseClipboard();
+
+    return 0;
+}
+
 int GetProcessExitCode(int processID, unsigned long* exitCode)
 {
     HANDLE processHandle = OpenProcess(SYNCHRONIZE, FALSE, processID);

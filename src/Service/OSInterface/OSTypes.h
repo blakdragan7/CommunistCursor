@@ -140,6 +140,13 @@ struct ProccessInfo
     std::string processName;    // the name of the process
 };
 
+// represents data from the OS clipboard
+
+struct ClipboardData
+{
+    std::string stringData;
+};
+
 extern std::ostream& operator<<(std::ostream& os, const OSEvent& event);
 extern std::ostream& operator<<(std::ostream& os, const NativeDisplay& event);
 
