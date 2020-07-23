@@ -426,28 +426,64 @@ int GetClipBoard(ClipboardData& outData)
         std::this_thread::sleep_for(std::chrono::milliseconds(300));
     }
 
-    /*UINT format = EnumClipboardFormats(NULL);
-
-    if (format == NULL)
-    {
-        // no data
-        return -2;
-    }
-
-    char formatName[256] = { 0 };
-
-    GetClipboardFormatName(format, formatName, 256);*/
-
     HANDLE cHandle = GetClipboardData(CF_TEXT);
 
     if (cHandle == NULL)
+    {
+        CloseClipboard();
         return GetLastError();
+    }
 
     LPVOID data = GlobalLock(cHandle);
 
     outData.stringData = (char*)data;
 
     GlobalUnlock(cHandle);
+
+    CloseClipboard();
+
+    return 0;
+}
+
+int SetClipBoard(const ClipboardData& data)
+{
+    if (windowHandle == INVALID_HANDLE_VALUE)
+        return -1;
+
+    size_t tries = 3;
+    while (OpenClipboard(windowHandle) == FALSE)
+    {
+        if (--tries <= 0)
+        {
+            return GetLastError();
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    }
+
+    EmptyClipboard();
+
+    size_t cSize = data.stringData.size();
+    HGLOBAL cData = GlobalAlloc(GMEM_MOVEABLE, cSize + 1);
+
+    if (cData == NULL)
+    {
+        CloseClipboard();
+        return GetLastError();
+    }
+
+    LPVOID gdata = GlobalLock(cData);
+    memcpy(gdata, data.stringData.c_str(), cSize);
+
+    ((char*)gdata)[cSize] = 0;
+
+    GlobalUnlock(cData);
+
+    if (SetClipboardData(CF_TEXT, cData) == NULL)
+    {
+        CloseClipboard();
+        return GetLastError();
+    }
 
     CloseClipboard();
 

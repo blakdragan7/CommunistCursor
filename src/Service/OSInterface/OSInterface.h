@@ -85,6 +85,10 @@ public:
      */
     OSInterfaceError GetClipboardData(ClipboardData& outData);
     /*
+     * Sets the clipboard data to OS
+     */
+    OSInterfaceError SetClipboardData(const ClipboardData& inData);
+    /*
      * Gets the current mouse cursor position
      *
      * Returns an OSInterfaceError on failure or OS_E_SUCCESS if succesful

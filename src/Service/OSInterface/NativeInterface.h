@@ -121,6 +121,12 @@ extern int GetMousePosition(int& xPos, int& yPos);
 */
 extern int GetClipBoard(ClipboardData& outData);
 /*
+    Set local Clipboard Data
+
+    returns 0 on success or OS Specific error on failure
+*/
+extern int SetClipBoard(const ClipboardData& data);
+/*
     Gets the local computer host name and stores it in {hostName}
 
     Returns OS error or 0 on success

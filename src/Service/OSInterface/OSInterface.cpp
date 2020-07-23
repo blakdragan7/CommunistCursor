@@ -163,6 +163,14 @@ OSInterfaceError OSInterface::GetClipboardData(ClipboardData& outData)
     return OSErrorToOSInterfaceError(OSError);
 }
 
+OSInterfaceError OSInterface::SetClipboardData(const ClipboardData& inData)
+{
+    int OSError = ::SetClipBoard(inData);
+    if (OSError == 0)
+        return OSInterfaceError::OS_E_SUCCESS;
+    return OSErrorToOSInterfaceError(OSError);
+}
+
 OSInterfaceError OSInterface::GetMousePosition(int& xPos, int& yPos)
 {
     int ret = ::GetMousePosition(xPos, yPos);
