@@ -140,11 +140,21 @@ struct ProccessInfo
     std::string processName;    // the name of the process
 };
 
+enum class ClipboardDataType : int
+{
+    Text = 0
+};
+
 // represents data from the OS clipboard
 
 struct ClipboardData
 {
     std::string stringData;
+    ClipboardDataType type;
+
+    ClipboardData() : type(ClipboardDataType::Text) {}
+    ClipboardData(void* data) : type(ClipboardDataType::Text), stringData((char*)data) {}
+    ClipboardData(void* data, ClipboardDataType type) : type(type), stringData((char*)data) {}
 };
 
 extern std::ostream& operator<<(std::ostream& os, const OSEvent& event);

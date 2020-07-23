@@ -148,18 +148,21 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 		LOG_INFO << "Jump To " << nextEntity->GetID() << std::endl;
 
 		// hide mouse
-		LOG_INFO << "Hide Mouse Current" << std::endl;
+		LOG_DEBUG << "Hide Mouse Current" << std::endl;
 		_currentEntity->RPC_HideMouse();
 
 		// Force mouse to be in center of screen
-		LOG_INFO << "Warp Current Mouse To Center" << std::endl;
+		LOG_DEBUG << "Warp Current Mouse To Center" << std::endl;
 		_currentEntity->RPC_SetMousePosition(0.5f, 0.5f);
 		if (_currentEntity->GetIsLocal())
 			_ignoreInputEvent = true;
 
 		// unhide mouse of last entity
-		LOG_INFO << "Unhide Mouse Next" << std::endl;
+		LOG_DEBUG << "Unhide Mouse Next" << std::endl;
 		nextEntity->RPC_UnhideMouse();
+
+		LOG_DEBUG << "Sending Clipbaord To New Entity" << std::endl;
+		nextEntity->SendLocalClipBoardData();
 
 		_currentEntity = nextEntity;
 

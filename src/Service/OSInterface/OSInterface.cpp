@@ -165,6 +165,9 @@ OSInterfaceError OSInterface::GetClipboardData(ClipboardData& outData)
 
 OSInterfaceError OSInterface::SetClipboardData(const ClipboardData& inData)
 {
+    if (inData.type != ClipboardDataType::Text)
+        return OSInterfaceError::OS_E_INVALID_PARAM;
+
     int OSError = ::SetClipBoard(inData);
     if (OSError == 0)
         return OSInterfaceError::OS_E_SUCCESS;

@@ -256,13 +256,68 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
                     LOG_INFO << "Sent Event";
                 }
                 break;
+            case TCPPacketType::OSEventCLipboard:
+            {
+                LOG_INFO << "Received Clipbaord Packet" << std::endl;
+                OSClipboardDataPacketHeader cHeader;
+                rsize_t received = 0;
+                error = server->Recv((char*)&cHeader, sizeof(OSClipboardDataPacketHeader), &received);
+                if (error != SocketError::SOCKET_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error Receiving OSClipboardDataPacketHeader " << SOCK_ERR_STR(server, error) << std::endl;
+                    return error;
+                }
+                if (received != sizeof(OSClipboardDataPacketHeader))
+                {
+                    LOG_ERROR << "Error Receiving OSClipboardDataPacketHeader " << SOCK_ERR_STR(server, error) << std::endl;
+                    return SocketError::SOCKET_E_INVALID_PACKET;
+                }
+
+                error = SendAwk(server);
+                if (error != SocketError::SOCKET_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error Sending Awk For OSClipboardDataPacketHeader " << SOCK_ERR_STR(server, error) << std::endl;
+                    return error;
+                }
+
+                char* osData = new char[((size_t)cHeader.dataSize + 1)];
+                memset(osData, 0, ((size_t)cHeader.dataSize+1));
+
+                error = server->Recv(osData, cHeader.dataSize, &received);
+                if (error != SocketError::SOCKET_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error Receiving OS Clipboard Data " << SOCK_ERR_STR(server, error) << std::endl;
+                    return error;
+                }
+                if (received != cHeader.dataSize)
+                {
+                    LOG_ERROR << "Error Receiving OS Clipboard Data " << SOCK_ERR_STR(server, error) << std::endl;
+                    return SocketError::SOCKET_E_INVALID_PACKET;
+                }
+
+                error = SendAwk(server);
+                if (error != SocketError::SOCKET_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error Sending Awk For OS Clipboard Data " << SOCK_ERR_STR(server, error) << std::endl;
+                    return error;
+                }
+
+                ClipboardData data(osData, (ClipboardDataType)cHeader.dataType);
+                OSInterfaceError oError = OSInterface::SharedInterface().SetClipboardData(data);
+                if (oError != OSInterfaceError::OS_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error Setting Clipboard Data " << OSInterfaceErrorToString(oError) << std::endl;
+                }
+            }
+                break;
             }
         }
         else
         {
-            LOG_ERROR << "Received Invalid TCP Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Received Invalid TCP Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
         }
     }
+    else return SocketError::SOCKET_E_BROKEN_PIPE;
 
     return error;
 }
@@ -274,10 +329,20 @@ void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
         delete server;
         if (_delegate)
             _delegate->LostServer();
-        DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::TCPCommThread, this));
+        if (_shouldBeRunningCommThread)
+        {
+            DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::TCPCommThread, this));
+        }
     }
 
-    DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HandleServerTCPCommJob, this, server));
+    if (_shouldBeRunningCommThread)
+    {
+        DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HandleServerTCPCommJob, this, server));
+    }
+    else
+    {
+        delete server;
+    }
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _isLocalEntity(true), \
@@ -566,6 +631,68 @@ void CCNetworkEntity::RPC_UnhideMouse()
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             LOG_ERROR << "Could not perform RPC!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        }
+    }
+}
+
+void CCNetworkEntity::SendLocalClipBoardData()
+{
+    if (!_isLocalEntity)
+    {
+        ClipboardData data;
+        OSInterfaceError oerror = OSInterface::SharedInterface().GetClipboardData(data);
+        if (oerror != OSInterfaceError::OS_E_SUCCESS)
+        {
+            LOG_ERROR << "Could not Get Clipboard Data " << OSInterfaceErrorToString(oerror) << std::endl;
+            return;
+        }
+
+        // is there anything to send ?
+        if (data.stringData.size() == 0)
+            return;
+    
+        NETCPPacketHeader nheader((char)TCPPacketType::OSEventCLipboard);
+        SocketError error = _tcpCommSocket->Send(&nheader, sizeof(nheader));
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error Sending NETCPPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            return;
+        }
+
+        error = WaitForAwk(_tcpCommSocket.get());
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error Waiting For Awk after Sending NETCPPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            return;
+        }
+
+        OSClipboardDataPacketHeader header(data);
+        error = _tcpCommSocket->Send((void*)&header, sizeof(header));
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error Sending OSClipboardDataPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            return;
+        }
+
+        error = WaitForAwk(_tcpCommSocket.get());
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error Waiting For Awk after Sending OSClipboardDataPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            return;
+        }
+
+        error = _tcpCommSocket->Send(data.stringData);
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error Sending Clipboard Data: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            return;
+        }
+
+        error = WaitForAwk(_tcpCommSocket.get());
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error Waiting For Awk After Sending Clipboard Data: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            return;
         }
     }
 }

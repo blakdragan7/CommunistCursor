@@ -37,7 +37,8 @@ enum class TCPPacketType : int
     Heartbeat               = 3,
 
     // Events
-    OSEventHeader           = 4
+    OSEventHeader           = 4,
+    OSEventCLipboard        = 5
 };
 
 enum class JumpDirection : int
@@ -97,6 +98,10 @@ public:
     ~CCNetworkEntity();
     // converts event into the appropriate packet and sends it over with a header
     void SendOSEvent(const OSEvent& event);
+    // sends the clipboard data to the remote computer if this is not a local entity
+    // if this is a local entity this just does nothing
+    // also if there is no clipboard data to send this does nothing
+    void SendLocalClipBoardData();
 
     // This will add the display to the internal displays vector
     void AddDisplay(std::shared_ptr<CCDisplay> display);

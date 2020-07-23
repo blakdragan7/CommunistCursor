@@ -46,4 +46,16 @@ struct OSInputEventPacket
     OSEvent AsOSEvent()const;
 };
 
+// this is the first message in a Cliboard packet message. The next message
+// will be just the raw data of the clipboard itself
+
+struct OSClipboardDataPacketHeader
+{
+    unsigned int dataSize;
+    uint8_t dataType;
+
+    OSClipboardDataPacketHeader();
+    OSClipboardDataPacketHeader(const ClipboardData& data);
+};
+
 #endif

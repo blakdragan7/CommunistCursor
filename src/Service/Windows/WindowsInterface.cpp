@@ -437,6 +437,7 @@ int GetClipBoard(ClipboardData& outData)
     LPVOID data = GlobalLock(cHandle);
 
     outData.stringData = (char*)data;
+    outData.type = ClipboardDataType::Text;
 
     GlobalUnlock(cHandle);
 
@@ -641,7 +642,8 @@ int GetHostName(std::string& hostName)
 
 int SetMousePosition(int x, int y)
 {
-    INPUT newInput = { 0 };
+    INPUT newInput;
+    memset(&newInput, 0, sizeof(INPUT));
     int eventType = 0;
 
     newInput.type = INPUT_MOUSE;
@@ -698,7 +700,9 @@ int SendMouseEvent(const OSEvent mouseEvent)
         return SetMousePosition(mouseEvent.x, mouseEvent.y);
     }
 
-    INPUT newInput = {0};
+    INPUT newInput;
+    memset(&newInput, 0, sizeof(INPUT));
+
     int eventType = 0;
 
     newInput.type = INPUT_MOUSE;
@@ -739,21 +743,21 @@ int SendMouseEvent(const OSEvent mouseEvent)
 
 int SendKeyEvent(const OSEvent keyEvent)
 {
-    INPUT newInput = {0};
-    int eventType = 0;
+    INPUT newInput;
+    memset(&newInput, 0, sizeof(INPUT));
 
     newInput.type = INPUT_KEYBOARD;
-
     newInput.ki.wScan = keyEvent.scanCode;
 
     switch(keyEvent.keyEvent)
     {
     case KEY_EVENT_UP:
-        eventType = KEYEVENTF_KEYUP;
+        newInput.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+        break;
+    case KEY_EVENT_DOWN:
+        newInput.ki.dwFlags = KEYEVENTF_SCANCODE;
         break;
     }
-
-    newInput.mi.dwFlags = KEYEVENTF_SCANCODE | eventType;
 
     {
         std::lock_guard<std::mutex> lock(inputMutex);

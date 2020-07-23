@@ -74,3 +74,11 @@ OSEvent OSInputEventPacket::AsOSEvent() const
 
 	return ret;
 }
+
+OSClipboardDataPacketHeader::OSClipboardDataPacketHeader() : dataSize(0), dataType(0)
+{
+}
+
+OSClipboardDataPacketHeader::OSClipboardDataPacketHeader(const ClipboardData& data) : dataSize((int)data.stringData.size()), dataType((int)data.type)
+{
+}
