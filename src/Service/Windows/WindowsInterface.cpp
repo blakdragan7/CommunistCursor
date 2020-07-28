@@ -23,6 +23,8 @@
 OSInterface* osi = 0;
 HHOOK mouseHook=0, keyboardHook=0;
 
+HCURSOR normalCursor = 0;
+HCURSOR emptyCursor = 0;
 
 std::mutex inputMutex;
 
@@ -40,11 +42,26 @@ int StartupOSConnection()
     if (windowHandle != (HWND)INVALID_HANDLE_VALUE)
         return 0;
 
-    WNDCLASSEX cls = {0};
+    {
+        /* Stolen From https://github.com/symless/synergy-core/blob/master/src/lib/platform/MSWindowsScreen.cpp#L877 */
+        int cw = GetSystemMetrics(SM_CXCURSOR);
+        int ch = GetSystemMetrics(SM_CYCURSOR);
+
+        uint8_t* cursorAND = new uint8_t[ch * ((cw + 31) >> 2)];
+        uint8_t* cursorXOR = new uint8_t[ch * ((cw + 31) >> 2)];
+        memset(cursorAND, 0xff, ch * ((cw + 31) >> 2));
+        memset(cursorXOR, 0x00, ch * ((cw + 31) >> 2));
+        emptyCursor = CreateCursor(GetModuleHandle(NULL), 0, 0, cw, ch, cursorAND, cursorXOR);
+        delete[] cursorXOR;
+        delete[] cursorAND;
+    }
+
+    WNDCLASSEX cls = {0}; 
     cls.cbSize = sizeof(cls);
     cls.hInstance = GetModuleHandle(NULL);
     cls.lpszClassName = WINDOW_CLASS_NAME;
     cls.lpfnWndProc = MainWndProc;
+    cls.hCursor = emptyCursor;
 
     if (RegisterClassEx(&cls) == false)
         return GetLastError();
@@ -61,6 +78,13 @@ int StartupOSConnection()
     if (windowHandle == (HWND)INVALID_HANDLE_VALUE)
         return GetLastError();
     
+    long wAttr = GetWindowLong(windowHandle, GWL_EXSTYLE);
+    SetWindowLong(windowHandle, GWL_EXSTYLE, wAttr | WS_EX_LAYERED);
+    if (SetLayeredWindowAttributes(windowHandle, 0, 1, 0x02) == false)
+    {
+        return GetLastError();
+    }
+
     UpdateWindow(windowHandle);
 
     return 0;
@@ -689,7 +713,8 @@ void NativeUnhookAllEvents()
 
 int SetMouseHidden(bool isHidden)
 {
-    // right now does nothing
+    if (ShowWindow(windowHandle, isHidden ? 1 : 0) == FALSE)
+        return GetLastError();
     return 0;
 }
 

@@ -70,18 +70,23 @@ void CCMain::SetupEntityConnections()
 void CCMain::RemoveLostEntites()
 {
 	// only lock out things that are cirtical
+	bool needsReSetup = false;
 	{
 		std::lock_guard<std::mutex> lock(_entitesAccessMutex);
 		for (auto entity : _lostEntites)
 		{
 			auto itr = std::find(_entites.begin(), _entites.end(), entity);
 			if (itr != _entites.end())
+			{
 				_entites.erase(itr);
+				needsReSetup = true;
+			}
 		}
 		_lostEntites.clear();
 	}
 
-	SetupEntityConnections();
+	if(needsReSetup)
+		SetupEntityConnections();
 }
 
 void CCMain::BroadcastAll()

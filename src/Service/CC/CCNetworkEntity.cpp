@@ -726,7 +726,8 @@ void CCNetworkEntity::TCPCommThread()
         LOG_ERROR << "Error accepting server connection: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
     }
 
-    DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HandleServerTCPCommJob, this, pserver));
+    if(_shouldBeRunningCommThread)
+        DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HandleServerTCPCommJob, this, pserver));
 }
 
 void CCNetworkEntity::UDPCommThread()
@@ -750,7 +751,8 @@ void CCNetworkEntity::UDPCommThread()
 
     LOG_DEBUG << "Received " << event << " From UDP Comm" << std::endl;
 
-    DISPATCH_ASYNC_SERIAL(_udpCommQueue, std::bind(&CCNetworkEntity::UDPCommThread, this));
+    if(_shouldBeRunningCommThread)
+        DISPATCH_ASYNC_SERIAL(_udpCommQueue, std::bind(&CCNetworkEntity::UDPCommThread, this));
 
     OSInterface::SharedInterface().SendOSEvent(event);
 }
@@ -767,6 +769,7 @@ void CCNetworkEntity::HeartbeatThread()
         {
             if (_delegate)
             {
+                _shouldBeRunningCommThread = false;
                 _delegate->EntityLost(this);
                 return;
             }
@@ -783,6 +786,7 @@ void CCNetworkEntity::HeartbeatThread()
         {
             if (_delegate)
             {
+                _shouldBeRunningCommThread = false;
                 _delegate->EntityLost(this);
                 return;
             }
@@ -795,6 +799,7 @@ void CCNetworkEntity::HeartbeatThread()
         {
             if (_delegate)
             {
+                _shouldBeRunningCommThread = false;
                 _delegate->EntityLost(this);
                 return;
             }
@@ -803,6 +808,7 @@ void CCNetworkEntity::HeartbeatThread()
         {
             if (_delegate)
             {
+                _shouldBeRunningCommThread = false;
                 _delegate->EntityLost(this);
                 return;
             }
@@ -814,6 +820,7 @@ void CCNetworkEntity::HeartbeatThread()
         if (_tcpCommSocket->IsConnected() == false)
         {
             _delegate->EntityLost(this);
+            _shouldBeRunningCommThread = false;
             return;
         }
 
