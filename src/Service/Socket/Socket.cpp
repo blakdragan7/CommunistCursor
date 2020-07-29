@@ -30,8 +30,14 @@
 #define INVALID_SOCKET -1
 #endif
 
+#ifdef _WIN32
+#define RECVBUFF_TYPE char*
+#endif
+
 #ifndef _WIN32
 #define SOCKET NativeSocketHandle
+#define closesocket close
+#define RECVBUFF_TYPE void*
 #endif
 
 #ifndef SD_SEND
@@ -44,10 +50,6 @@
 
 #ifndef SD_BOTH
 #define SD_BOTH SHUT_RDWR
-#endif
-
-#ifndef _WIN32
-#define closesocket close
 #endif
 
 #ifndef NO_ERROR
@@ -492,7 +494,7 @@ SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t b
         return SOCK_ERR(lastOSErr);
     }
 //ssize_t recvfrom(int, void *, size_t, int, struct sockaddr * __restrict, socklen_t * __restrict) __DARWIN_ALIAS_C(recvfrom);
-    int received = recvfrom((SOCKET)_sfd, (void*)buff, buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
+    int received = recvfrom((SOCKET)_sfd, (RECVBUFF_TYPE)buff, buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
 
     if (received == SOCKET_ERROR)
     {
