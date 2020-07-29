@@ -35,10 +35,10 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
             if(scancode <= kHIDUsage_KeyboardErrorUndefined || scancode > kHIDUsage_KeyboardRightGUI)
                 return;
             
-            event.eventButton.scanCode = scancode;
+            event.scanCode = scancode;
             
             event.eventType = OS_EVENT_KEY;
-            event.subEvent.keyEvent = pressed == 1 ? KEY_EVENT_DOWN : KEY_EVENT_UP;
+            event.keyEvent = pressed == 1 ? KEY_EVENT_DOWN : KEY_EVENT_UP;
         }
         case kHIDPage_Button:
         {
@@ -46,27 +46,27 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
             switch (usage) {
                     // left button
                 case kHIDUsage_Button_1:
-                    event.eventButton.mouseButton = MOUSE_BUTTON_LEFT;
+                    event.mouseButton = MOUSE_BUTTON_LEFT;
                     break;
                     // right button
                 case kHIDUsage_Button_2:
-                    event.eventButton.mouseButton = MOUSE_BUTTON_RIGHT;
+                    event.mouseButton = MOUSE_BUTTON_RIGHT;
                     break;
                     // middle button probably
                 case kHIDUsage_Button_3:
-                    event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+                    event.mouseButton = MOUSE_BUTTON_MIDDLE;
                     break;
                 default:
                     break;
             }
             
-            event.subEvent.mouseEvent = integerValue ? MOUSE_EVENT_DOWN : MOUSE_EVENT_UP;
+            event.mouseEvent = integerValue ? MOUSE_EVENT_DOWN : MOUSE_EVENT_UP;
         }
     
         case kHIDPage_GenericDesktop:
         {
             event.eventType = OS_EVENT_MOUSE;
-            event.subEvent.mouseEvent = MOUSE_EVENT_MOVE;
+            event.mouseEvent = MOUSE_EVENT_MOVE;
             switch (usage) {
                 case kHIDUsage_GD_X:
                     event.deltaX = integerValue;
@@ -75,7 +75,7 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
                     event.deltaY = integerValue;
                     break;
                 case kHIDUsage_GD_Wheel:
-                    event.eventButton.mouseButton = MOUSE_BUTTON_MIDDLE;
+                    event.mouseButton = MOUSE_BUTTON_MIDDLE;
                     event.extendButtonInfo = integerValue;
                     break;
                 default:
@@ -84,7 +84,10 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
         }
     }
     
-    osi->UpdateThread(event);
+    if(osi->ConsumeInputEvent(event))
+    {
+        // somehow stop event from moving forward
+    }
 }
 
 CFMutableDictionaryRef CreateDeviceMatchingDictionary(UInt32 usagePage, UInt32 usage)
@@ -182,13 +185,13 @@ int SendMouseEvent(const OSEvent mouseEvent)
     CGEventRef event;
     bool isScrollEvent = false;
     
-    switch (mouseEvent.subEvent.mouseEvent)
+    switch (mouseEvent.mouseEvent)
     {
     case MOUSE_EVENT_MOVE:
         eventType = kCGEventMouseMoved;
         break;
     case MOUSE_EVENT_DOWN:
-            switch (mouseEvent.eventButton.mouseButton)
+            switch (mouseEvent.mouseButton)
             {
                 case MOUSE_BUTTON_LEFT:
                     eventType = kCGEventLeftMouseDown;
@@ -207,7 +210,7 @@ int SendMouseEvent(const OSEvent mouseEvent)
         
         break;
     case MOUSE_EVENT_UP:
-        switch (mouseEvent.eventButton.mouseButton)
+        switch (mouseEvent.mouseButton)
         {
             case MOUSE_BUTTON_LEFT:
                 eventType = kCGEventLeftMouseUp;
@@ -294,5 +297,5 @@ int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent)
 
 OSInterfaceError OSErrorToOSInterfaceError(int OSError)
 {
-    return OS_E_SUCCESS;
+    return OSInterfaceError::OS_E_SUCCESS;
 }
