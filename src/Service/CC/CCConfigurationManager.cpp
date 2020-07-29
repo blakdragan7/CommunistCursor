@@ -13,7 +13,7 @@ CCConfigurationManager::CCConfigurationManager(string configFilePath) : _isLoade
 {
 	if (LoadFromFile(configFilePath) == false)
 	{
-		throw std::exception(("Failed to load from file " + configFilePath).c_str());
+		throw std::runtime_error(("Failed to load from file " + configFilePath));
 	}
 }
 

@@ -33,6 +33,8 @@ OSInputEventPacket::OSInputEventPacket(const OSEvent& event) : data1(0), data2(0
 		case MOUSE_EVENT_SCROLL:
 			eventType = EventPacketType::MouseWheel;
 			wheelData = event.extendButtonInfo;
+        case MOUSE_EVENT_INVALID:
+                break;
 		}
 		break;
 	case OS_EVENT_HID:
@@ -70,6 +72,8 @@ OSEvent OSInputEventPacket::AsOSEvent() const
 		ret.x = posX;
 		ret.y = posY;
 		break;
+    case EventPacketType::INVALID:
+        break;
 	}
 
 	return ret;

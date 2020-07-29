@@ -23,6 +23,10 @@
 
 #define GUI_PROGRAM_PATH "bin/CCGui.exe"
 
+#else
+
+#define GUI_PROGRAM_PATH "bin/CCGui.exe"
+
 #endif
 
 void CCGuiService::SocketAcceptThread()

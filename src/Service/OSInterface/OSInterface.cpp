@@ -21,7 +21,7 @@ OSInterface::OSInterface() :_shouldRunMainloop(true), _hasHookedEvents(false)
     if (ret != 0)
     {
         std::string errorString = "Could no Start Connection To OS " + std::to_string(ret);
-        throw std::exception(errorString.c_str());
+        throw std::runtime_error(errorString);
     }
 }
 

@@ -58,7 +58,7 @@ void CCLogger::SetLogLevel(std::string level)
 	else
 	{
 		std::string errorStr = "Invalid Log Level Given " + orig;
-		throw std::exception(errorStr.c_str());
+		throw std::runtime_error(errorStr);
 	}
 }
 

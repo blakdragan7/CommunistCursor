@@ -270,7 +270,7 @@ void CCMain::StartServerMain()
 
 	if (_guiService.StartGUIServer() == false)
 	{
-		throw std::exception("Could Not Start Gui Socket Server !");
+		throw std::runtime_error("Could Not Start Gui Socket Server !");
 	}
 
 	std::vector<IPAdressInfo> ipAddress;
@@ -281,12 +281,12 @@ void CCMain::StartServerMain()
 	{
 		std::string exceptionString = "Error Getting IP Address " + OSInterfaceErrorToString(error);
 		// there is nothing we can do here if we can't even get our address so exception time
-		throw std::exception(exceptionString.c_str());
+		throw std::runtime_error(exceptionString.c_str());
 	}
 
 	if (ipAddress.size() < 1)
 	{
-		throw std::exception("Could not start server because IP address could not be found");
+		throw std::runtime_error("Could not start server because IP address could not be found");
 	}
 
 	// Remove all Addresses that don't have a broadcastable address
@@ -318,7 +318,7 @@ void CCMain::StartServerMain()
 
 		exceptionString += OSInterfaceErrorToString(err);
 
-		throw std::exception(exceptionString.c_str());
+		throw std::runtime_error(exceptionString.c_str());
 	}
 #if REGISTER_OS_EVENTS
 	OSInterface::SharedInterface().RegisterForOSEvents(this);
@@ -515,7 +515,7 @@ bool CCMain::ReceivedNewInputEvent(OSEvent event)
 	}
 	DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::ProcessInputEvent, this, event));
 
-	return !_currentEntity->GetIsLocal() && !(event.eventType == OS_EVENT_MOUSE && event.mouseEvent == OS_EVENT_MOUSE);
+	return !_currentEntity->GetIsLocal() && (event.eventType == OS_EVENT_MOUSE && event.mouseEvent == MOUSE_EVENT_MOVE);
 }
 
 // move these somewhere else later

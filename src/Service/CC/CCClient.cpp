@@ -5,6 +5,7 @@
 
 #include "CCPacketTypes.h"
 #include "CCLogger.h"
+#include <exception>
 
 CCClient::CCClient(int listenPort) : _serverAddress("0.0.0.0"), _listenPort(listenPort), _needsNewServer(true)
 {
@@ -12,7 +13,7 @@ CCClient::CCClient(int listenPort) : _serverAddress("0.0.0.0"), _listenPort(list
 	if (error != OSInterfaceError::OS_E_SUCCESS)
 	{
 		std::string errorMessage = "Error Getting Display List " + OSInterfaceErrorToString(error);
-		throw std::exception(errorMessage.c_str());
+		throw std::runtime_error(errorMessage);
 	}
 }
 

@@ -35,7 +35,16 @@ struct EntityIDPacket
 	size_t IDLength;
 	char EntityID[256];
 	EntityIDPacket() : MagicNumber(P_MAGIC_NUMBER), IDLength(0) {}
-	EntityIDPacket(std::string id) : MagicNumber(P_MAGIC_NUMBER), IDLength(id.size()) { memset(EntityID,0,256); strcpy_s(EntityID, id.c_str()); }
+    EntityIDPacket(std::string id) : MagicNumber(P_MAGIC_NUMBER), IDLength(id.size())
+    {
+        size_t size = id.size();
+        if(size > 255)size=255;
+        memset(EntityID,0,256);
+        memcpy(EntityID, id.c_str(), size);
+        EntityID[size] = 0;
+        IDLength = size;
+        
+    }
 };
 
 /*

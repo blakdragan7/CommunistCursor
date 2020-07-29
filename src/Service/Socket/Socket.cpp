@@ -5,13 +5,21 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+
+
 #else
+
+#include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <netdb.h>
+
+#define ioctlsocket ioctl
+
 #endif
 
 #ifndef SOCKET_ERROR
@@ -27,19 +35,23 @@
 #endif
 
 #ifndef SD_SEND
-#define SD_SEND SDT_SEND
+#define SD_SEND SHUT_WR
 #endif
 
 #ifndef SD_RECEIVE
-#define SD_RECEIVE SDT_RECEIVE
+#define SD_RECEIVE SHUT_RD
 #endif
 
 #ifndef SD_BOTH
-#define SD_BOTH SDT_ALL
+#define SD_BOTH SHUT_RDWR
 #endif
 
 #ifndef _WIN32
 #define closesocket close
+#endif
+
+#ifndef NO_ERROR
+#define NO_ERROR 0
 #endif
 
 #undef SOCK_ERR
@@ -149,7 +161,7 @@ SocketError Socket::MakeInternalSocketInfo()
     if (_address == SOCKET_ANY_ADDRESS)
     {
         address_c = NULL;
-        hints.ai_addr = INADDR_ANY;
+        hints.ai_addr = (struct sockaddr*)INADDR_ANY;
     }
     else
     {
@@ -469,7 +481,7 @@ SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t b
     struct addrinfo* result = static_cast<struct addrinfo*>(this->_internalSockInfo);
 
     struct sockaddr_in recv_addr;
-    int recvAddrSize = sizeof(recv_addr);
+    socklen_t recvAddrSize = sizeof(recv_addr);
 
     recv_addr.sin_family = result->ai_family;
     recv_addr.sin_port = htons(port);
@@ -479,8 +491,8 @@ SocketError Socket::RecvFrom(std::string address, int port, char* buff, size_t b
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
     }
-
-    int received = recvfrom((SOCKET)_sfd, buff, (int)buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
+//ssize_t recvfrom(int, void *, size_t, int, struct sockaddr * __restrict, socklen_t * __restrict) __DARWIN_ALIAS_C(recvfrom);
+    int received = recvfrom((SOCKET)_sfd, (void*)buff, buffLength, 0, (sockaddr*)&recv_addr, &recvAddrSize);
 
     if (received == SOCKET_ERROR)
     {
@@ -822,8 +834,14 @@ SocketError Socket::Accept(Socket** acceptedSocket, size_t timeout)
 SocketError Socket::HasReadInput(bool& outHasReadInput)
 {
     fd_set set = { 0 };
+#ifdef _WIN32
     set.fd_count = 1;
     set.fd_array[0] = (SOCKET)_sfd;
+#else
+    FD_ZERO(&set);
+    FD_SET(_sfd, &set);
+#endif
+    
     int ret = select(NULL, &set, NULL, NULL, NULL);
     if (ret == SOCKET_ERROR)
     {
@@ -845,8 +863,13 @@ SocketError Socket::HasReadInput(bool& outHasReadInput, WaitDuration  duration)
     waitTime.tv_sec = (long)(miliseconds.count() / 1000);
     waitTime.tv_usec = (long)((miliseconds.count() % 1000) * 1000);
     fd_set set = { 0 };
+#ifdef _WIN32
     set.fd_count = 1;
     set.fd_array[0] = (SOCKET)_sfd;
+#else
+    FD_ZERO(&set);
+    FD_SET(_sfd, &set);
+#endif
     int ret = select(NULL, &set, NULL, NULL, &waitTime);
     if (ret == SOCKET_ERROR)
     {
@@ -864,8 +887,13 @@ SocketError Socket::HasReadInput(bool& outHasReadInput, WaitDuration  duration)
 SocketError Socket::HasWriteOutput(bool& outHasWriteOutput)
 {
     fd_set set = { 0 };
+#ifdef _WIN32
     set.fd_count = 1;
     set.fd_array[0] = (SOCKET)_sfd;
+#else
+    FD_ZERO(&set);
+    FD_SET(_sfd, &set);
+#endif
     int ret = select(NULL, NULL, &set, NULL, NULL);
     if (ret == SOCKET_ERROR)
     {
@@ -887,8 +915,13 @@ SocketError Socket::HasWriteOutput(bool& outHasWriteOutput, WaitDuration  durati
     waitTime.tv_sec = (long)(miliseconds.count() / 1000);
     waitTime.tv_usec = (long)((miliseconds.count() % 1000) * 1000);
     fd_set set = { 0 };
+#ifdef _WIN32
     set.fd_count = 1;
     set.fd_array[0] = (SOCKET)_sfd;
+#else
+    FD_ZERO(&set);
+    FD_SET(_sfd, &set);
+#endif
     int ret = select(NULL, NULL, &set, NULL, &waitTime);
     if (ret == SOCKET_ERROR)
     {

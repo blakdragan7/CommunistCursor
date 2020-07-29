@@ -22,7 +22,6 @@ public:
 	DispatchQueue(bool isSerial);
 	DispatchQueue(bool isSerial, std::string name);
 	DispatchQueue(const DispatchQueue&) = delete;
-	DispatchQueue(DispatchQueue&&) = default;
 
 
 	void AddJob(DispatchJob& job);
