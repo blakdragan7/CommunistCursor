@@ -162,8 +162,6 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
     SocketError error = SocketError::SOCKET_E_SUCCESS;
     if(server->IsConnected() && _shouldBeRunningCommThread)
     {
-        LOG_INFO << "while (server->IsConnected() && _shouldBeRunningCommThread) loop start\n";
-
         NETCPPacketHeader packet;
         size_t received = 0;
         error = server->Recv((char*)&packet, sizeof(packet), &received);
