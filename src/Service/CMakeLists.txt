@@ -56,8 +56,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         find_library(IOKIT IOKit)
         find_library(FOUNDATION Foundation)
         find_library(APPLICATION_SERVICES ApplicationServices)
+        find_library(APPKIT AppKit)
         
-        target_link_libraries(CommunistCursor ${IOKIT} ${FOUNDATION} ${APPLICATION_SERVICES} nlohmann_json::nlohmann_json)
+        target_link_libraries(CommunistCursor ${IOKIT} ${FOUNDATION} ${APPLICATION_SERVICES} ${APPKIT} nlohmann_json::nlohmann_json)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Unix")
