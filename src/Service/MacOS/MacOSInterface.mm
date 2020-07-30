@@ -122,6 +122,15 @@ CFMutableDictionaryRef CreateDeviceMatchingDictionary(UInt32 usagePage, UInt32 u
     return dict;
 }
 
+int SetMousePosition(int x,int y)
+{
+    return (int)CGDisplayMoveCursorToPoint(CGMainDisplayID(), CGPointMake(x, y));
+}
+
+int GetMousePosition(int& xPos, int& yPos)
+{
+    
+}
 
 int NativeRegisterForOSEvents(OSInterface* osi)
 {
