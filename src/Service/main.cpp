@@ -37,6 +37,17 @@ int ParaseArguments(int argc, char* argv[]);
 
 bool shouldPause = false;
 
+class Printer : public IOSEventReceiver
+{
+    bool ReceivedNewInputEvent(OSEvent event)override
+    {
+        if(event.eventType == OS_EVENT_KEY && event.keyEvent == KEY_EVENT_DOWN)
+            std::cout << event.scanCode << std::endl;
+
+        return event.eventType == OS_EVENT_KEY;
+    }
+};
+
 int main(int argc, char* argv[])
 {
     Socket::OSSocketStartup();
@@ -47,18 +58,29 @@ int main(int argc, char* argv[])
     {
         LOG_INFO << "Starting Communist Cursor\n";
 
-        CCMain main;
-        main.LoadAll();
-
         if (res == -1)
         {
             LOG_INFO << "Starting Server\n";
+            CCMain main;
+            main.LoadAll();
             main.StartServerMain();
         }
         else if (res == -2)
         {
             LOG_INFO << "Starting Client\n";
+            CCMain main;
+            main.LoadAll();
             main.StartClientMain();
+        }
+        else if (res == -3)
+        {
+            LOG_INFO << "Starting in Print Mode" << std::endl;
+ 
+            Printer printer;
+
+            OSInterface::SharedInterface().RegisterForOSEvents(&printer);
+
+            OSInterface::SharedInterface().OSMainLoop();
         }
         else
         {
@@ -92,7 +114,8 @@ int ParaseArguments(int argc, char* argv[])
     args::Command testMouseMove(commandGroup, "test-mousemove", "Perform mouse injection tests, will move mouse to random location on screen");
     args::Command runServer(commandGroup, "runServer", "Run in server mode.");
     args::Command runClient(commandGroup, "runClient", "Run in client mode.");
-    args::Command iservice(commandGroup, "service", "Install as a service");
+    args::Command printKeyCodes(commandGroup, "printKeyCodes", "Hook keyboard events and print virtual keys generated from those events");
+    //args::Command installService(commandGroup, "installService", "Install as a service");
     args::Group arguments(parser, "arguments", args::Group::Validators::DontCare, args::Options::Global);
     args::ValueFlag<std::string> logLevel(arguments, "logLevel", "Sets the log level for the program valid options (VERBOSE, DEBUG, INFO, WARN, ERROR, NONE)", { 'l' });
     args::ValueFlag<unsigned int> numThreads(arguments, "threads", "Sets the number of threads in the pool. Must be > 0", {'t'});
@@ -140,19 +163,22 @@ int ParaseArguments(int argc, char* argv[])
         {
             return EventTest();
         }
-        else if(iservice)
+        /*else if(installService)
         {
             // install service
             return 0;
-        }
+        }*/
         else if(runServer)
         {
-            // perform standard operation
             return -1;
         }
         else if (runClient)
         {
             return -2;
+        }
+        else if (printKeyCodes)
+        {
+            return -3;
         }
     }
     catch (args::Help)
