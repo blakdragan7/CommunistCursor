@@ -412,6 +412,10 @@ int SendMouseEvent(const OSEvent mouseEvent)
     CGMouseButton mouseButton = kCGMouseButtonLeft;
     CGEventRef event;
     
+    static bool leftMouseDown = false;
+    static bool rightMouseDown = false;
+    static bool centerMouseDown = false;
+    
     static int lastEventPosX = 0;
     static int lastEventPosY = 0;
     
@@ -425,7 +429,25 @@ int SendMouseEvent(const OSEvent mouseEvent)
     case MOUSE_EVENT_MOVE:
         eventPosX = mouseEvent.x;
         eventPosY = mouseEvent.y;
-        eventType = kCGEventMouseMoved;
+        if(leftMouseDown)
+        {
+            mouseButton = kCGMouseButtonLeft;
+            eventType = kCGEventLeftMouseDragged;
+        }
+        else if(rightMouseDown)
+        {
+            mouseButton = kCGMouseButtonRight;
+            eventType = kCGEventRightMouseDragged;
+        }
+        else if(centerMouseDown)
+        {
+            mouseButton = kCGMouseButtonCenter;
+            eventType = kCGEventOtherMouseDragged;
+        }
+        else
+        {
+            eventType = kCGEventMouseMoved;
+        }
         break;
     case MOUSE_EVENT_DOWN:
             switch (mouseEvent.mouseButton)
@@ -433,14 +455,18 @@ int SendMouseEvent(const OSEvent mouseEvent)
                 case MOUSE_BUTTON_LEFT:
                     eventType = kCGEventLeftMouseDown;
                     mouseButton = kCGMouseButtonLeft;
+                    leftMouseDown = true;
                     break;
                 case MOUSE_BUTTON_RIGHT:
                     eventType = kCGEventRightMouseDown;
                     mouseButton = kCGMouseButtonRight;
+                    rightMouseDown = true;
                     break;
                 case MOUSE_BUTTON_MIDDLE:
                     eventType = kCGEventOtherMouseDown;
                     mouseButton = kCGMouseButtonCenter;
+                    centerMouseDown = true;
+                    break;
                 default:
                     break;
             }
@@ -452,14 +478,18 @@ int SendMouseEvent(const OSEvent mouseEvent)
             case MOUSE_BUTTON_LEFT:
                 eventType = kCGEventLeftMouseUp;
                 mouseButton = kCGMouseButtonLeft;
+                leftMouseDown = false;
                 break;
             case MOUSE_BUTTON_RIGHT:
                 eventType = kCGEventRightMouseUp;
                 mouseButton = kCGMouseButtonRight;
+                rightMouseDown = false;
                 break;
             case MOUSE_BUTTON_MIDDLE:
                 eventType = kCGEventOtherMouseUp;
                 mouseButton = kCGMouseButtonCenter;
+                centerMouseDown = false;
+                break;
             default:
                 break;
         }
@@ -473,7 +503,7 @@ int SendMouseEvent(const OSEvent mouseEvent)
     }
     
     if(isScrollEvent)
-        event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo);
+        event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo*32);
     else
         event = CGEventCreateMouseEvent(NULL, eventType, CGPointMake(eventPosX, eventPosY), mouseButton);
     
@@ -520,6 +550,9 @@ int SendKeyEvent(const OSEvent keyEvent)
 {
     CGKeyCode code;
     bool keydown;
+    
+    keydown = keyEvent.keyEvent == KEY_EVENT_DOWN;
+    code = keyEvent.scanCode;
     
     CGEventRef event = CGEventCreateKeyboardEvent(NULL, code, keydown);
     CGEventPost(kCGHIDEventTap, event);
