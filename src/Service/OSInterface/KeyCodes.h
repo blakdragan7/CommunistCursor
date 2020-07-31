@@ -87,7 +87,7 @@ enum class KeyCode : int
 	KC_QUESTION_MARK		= 191,
 	KC_APPS_KEY				= 93,
 
-	KC_INSTER				= 45,
+	KC_INSERT				= 45,
 	KC_HOME					= 36,
 	KC_PAGE_UP				= 33,
 	KC_PAGE_DOWN			= 34,
