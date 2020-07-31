@@ -10,6 +10,7 @@
 #include "../Socket/Socket.h"
 #include "../Socket/SocketException.h"
 #include "../OSInterface/OSInterface.h"
+#include "../OSInterface/KeyCodes.h"
 
 #include "../Dispatcher/DispatchManager.h"
 
@@ -504,7 +505,7 @@ void CCMain::EntitiesFinishedConfiguration()
 
 bool CCMain::ReceivedNewInputEvent(OSEvent event)
 {
-	if (event.eventType == OS_EVENT_KEY && event.scanCode == 81 /* Page_Down button */)
+	if (event.eventType == OS_EVENT_KEY && event.scanCode == (int)KeyCode::KC_PAGE_DOWN)
 	{
 		_currentEntity = _localEntity.get();
 		_currentEntity->RPC_UnhideMouse();
