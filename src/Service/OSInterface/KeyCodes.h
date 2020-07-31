@@ -44,6 +44,8 @@ enum class KeyCode : int
 	KC_EQUALS				= 187,
 	KC_BACKSPACE			= 8,
 
+	KC_SPACE				= 32,
+
 	KC_NUM_PAD_0			= 96,
 	KC_NUM_PAD_1			= 97,
 	KC_NUM_PAD_2			= 98,
