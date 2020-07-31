@@ -14,6 +14,8 @@ std::string OSInterfaceErrorToString(OSInterfaceError err)
             return "Error Not Registered";
         case OSInterfaceError::OS_E_NOT_AUTHERIZED:
             return "Error Not Autherized";
+        case OSInterfaceError::OS_E_COMMUNICATION_ERROR:
+            return "Error Internal Communication";
         case OSInterfaceError::OS_E_NOT_IMPLEMENTED:
             return "Error Not Implemented";
         case OSInterfaceError::OS_E_UNKOWN:

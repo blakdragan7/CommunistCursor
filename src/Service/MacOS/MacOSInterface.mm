@@ -8,7 +8,29 @@
 #include <iostream>
 #include <string>
 
+#import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
+
+#import <sys/types.h>
+#import <net/if.h>
+#import <net/if_var.h>
+#import <ifaddrs.h>
+#import <sys/socket.h>
+#import <sys/types.h>
+#import <net/ethernet.h>
+#import <arpa/inet.h>
+#import <netinet/in.h>
+
 #define S(a) std::to_string(a)
+
+#define INET_ADDRSLEN 16
+#define INET6_ADDRSLEN 46
+
+// change this latter to something that won't overlap any other error codes
+#define ERROR_NO_IMP -1
+#define ERROR_INVALID_PARAM -2
+#define ERROR_COMM -3
+#define ERROR_UNKOWN -4
 
 IOHIDManagerRef hidManager = NULL;
 
@@ -75,6 +97,7 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
                     event.deltaY = integerValue;
                     break;
                 case kHIDUsage_GD_Wheel:
+                    event.mouseEvent = MOUSE_EVENT_SCROLL;
                     event.mouseButton = MOUSE_BUTTON_MIDDLE;
                     event.extendButtonInfo = integerValue;
                     break;
@@ -122,6 +145,211 @@ CFMutableDictionaryRef CreateDeviceMatchingDictionary(UInt32 usagePage, UInt32 u
     return dict;
 }
 
+int StartupOSConnection()
+{
+    return 0;
+}
+
+int ShutdownOSConnection()
+{
+    return 0;
+}
+
+int SetMousePosition(int x,int y)
+{
+    return (int)CGDisplayMoveCursorToPoint(CGMainDisplayID(), CGPointMake(x, y));
+}
+
+int GetMousePosition(int& xPos, int& yPos)
+{
+    NSPoint point;
+    point = [NSEvent mouseLocation];
+    xPos = point.x;
+    yPos = point.y;
+    
+    return 0;
+}
+
+int SetMouseHidden(bool isHidden)
+{
+    if(isHidden)
+        [NSCursor hide];
+    else
+        [NSCursor unhide];
+}
+
+int GetProcessExitCode(int processID, unsigned long* exitCode)
+{
+    return ERROR_NO_IMP;
+}
+
+int GetIsProcessActive(int processID, bool* isActive)
+{
+    return ERROR_NO_IMP;
+}
+
+int StartProcessAsDesktopUser(std::string process, std::string args, std::string workingDir,bool isVisible, ProccessInfo* processInfo)
+{
+    return ERROR_NO_IMP;
+}
+
+int GetClipBoard(ClipboardData& outData)
+{
+    @autoreleasepool {
+        NSPasteboard* pb = [NSPasteboard generalPasteboard];
+        NSString* string = [pb stringForType:NSPasteboardTypeString];
+        if(string == nil)
+            return 0; // we don't have clipboard data or something wen't wrong sadly we don't know which one
+        outData.stringData = string.UTF8String;
+        outData.type = ClipboardDataType::Text;
+    }
+    
+    return 0;
+}
+
+int SetClipBoard(const ClipboardData& data)
+{
+    if(data.type != ClipboardDataType::Text)
+        return ERROR_INVALID_PARAM;
+    
+    @autoreleasepool {
+        NSPasteboard* pb = [NSPasteboard generalPasteboard];
+        NSString* pData = [NSString stringWithUTF8String:data.stringData.c_str()];
+        try {
+            if([pb declareTypes:@[NSPasteboardTypeString] owner:nil] == NO)
+            {
+                return ERROR_UNKOWN;
+            }
+            
+            if([pb setString:pData forType:NSPasteboardTypeString] == NO)
+            {
+                return ERROR_UNKOWN;
+            }
+        } catch (NSException* e) {
+            if([e.name isEqualToString:NSPasteboardCommunicationException])
+            {
+                return ERROR_COMM;
+            }
+            
+            return ERROR_UNKOWN;
+        }
+        
+    }
+    return 0;
+}
+
+int GetAllDisplays(std::vector<NativeDisplay>& outDisplays)
+{
+    NSArray<NSScreen*>* screens = [NSScreen screens];
+
+    for(NSScreen* screen in screens)
+    {
+        NativeDisplay display;
+        id screenNumber = [screen.deviceDescription objectForKey:@"NSSScreenNumber"];
+        display.nativeScreenID = [screenNumber integerValue];
+        display.posX = screen.frame.origin.x;
+        display.posY = screen.frame.origin.y;
+        display.height = screen.frame.size.height;
+        display.width = screen.frame.size.width;
+        
+        outDisplays.push_back(display);
+    }
+    
+    return 0;
+}
+
+int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfoHints& hints)
+{
+    if((bool)(hints.type & IPAddressType::MULTICAST) || (bool)(hints.type & IPAddressType::ANYCAST) || (bool)(hints.type & IPAddressType::DNSSERVER))
+    {
+        return ERROR_NO_IMP;
+        // not compatable
+    }
+    
+    struct ifaddrs *addrs, *tmp;
+    
+    if(getifaddrs(&addrs) == -1)
+        return errno;
+    
+    tmp = addrs;
+    
+    while(tmp)
+    {
+        if(tmp->ifa_addr && !(tmp->ifa_flags & IFF_LOOPBACK))
+        {
+            if(tmp->ifa_addr->sa_family == AF_INET && ((bool)(hints.familly & IPAddressFamilly::IPv4) && (bool)(hints.type & IPAddressType::UNICAST)))
+            {
+                IPAdressInfo info;
+                info.adaptorName = tmp->ifa_name;
+                
+                char address[INET_ADDRSLEN] = {0};
+                char mask[INET_ADDRSLEN] = {0};
+                
+                struct sockaddr_in* inAd= (sockaddr_in*)tmp->ifa_addr;
+                
+                inet_ntop(inAd->sin_family, (void*)&inAd->sin_addr, address, INET_ADDRSLEN);
+                
+                if(tmp->ifa_netmask)
+                {
+                    inAd = (sockaddr_in*)tmp->ifa_netmask;
+                    inet_ntop(inAd->sin_family, (void*)&inAd->sin_addr, mask, INET_ADDRSLEN);
+                }
+                
+                info.address = address;
+                info.subnetMask = mask;
+                info.addressFamilly = IPAddressFamilly::IPv4;
+                info.addressType = IPAddressType::UNICAST;
+                
+                outAddresses.push_back(info);
+            }
+            
+            if(tmp->ifa_addr->sa_family == AF_INET6 && ((bool)(hints.familly & IPAddressFamilly::IPv6) && (bool)(hints.type & IPAddressType::UNICAST)))
+            {
+                IPAdressInfo info;
+                info.adaptorName = tmp->ifa_name;
+                
+                char address[INET6_ADDRSLEN] = {0};
+                char mask[INET6_ADDRSLEN] = {0};
+                
+                struct sockaddr_in* inAd= (sockaddr_in*)tmp->ifa_addr;
+                
+                inet_ntop(inAd->sin_family, (void*)&inAd->sin_addr, address, INET6_ADDRSLEN);
+                
+                if(tmp->ifa_netmask)
+                {
+                    inAd = (sockaddr_in*)tmp->ifa_netmask;
+                    inet_ntop(inAd->sin_family, (void*)&inAd->sin_addr, mask, INET6_ADDRSLEN);
+                }
+                
+                info.address = address;
+                info.subnetMask = mask;
+                info.addressFamilly = IPAddressFamilly::IPv6;
+                info.addressType = IPAddressType::UNICAST;
+                
+                outAddresses.push_back(info);
+            }
+        }
+        tmp = tmp->ifa_next;
+    }
+    
+    freeifaddrs(addrs);
+    
+    return 0;
+}
+
+int GetHostName(std::string& hostName)
+{
+    @autoreleasepool {
+        NSString* hName = [[NSHost currentHost] name];
+        
+        if(hName.length <= 0)
+            return ERROR_UNKOWN;
+        
+        hostName = [hName UTF8String];
+    }
+    
+    return 0;
+}
 
 int NativeRegisterForOSEvents(OSInterface* osi)
 {
@@ -180,15 +408,46 @@ void NativeUnhookAllEvents()
 
 int SendMouseEvent(const OSEvent mouseEvent)
 {
-    CGEventType eventType;
-    CGMouseButton mouseButton;
+    CGEventType eventType = kCGEventMouseMoved;
+    CGMouseButton mouseButton = kCGMouseButtonLeft;
     CGEventRef event;
+    
+    static bool leftMouseDown = false;
+    static bool rightMouseDown = false;
+    static bool centerMouseDown = false;
+    
+    static int lastEventPosX = 0;
+    static int lastEventPosY = 0;
+    
+    int eventPosX = lastEventPosX;
+    int eventPosY = lastEventPosY;
+    
     bool isScrollEvent = false;
     
     switch (mouseEvent.mouseEvent)
     {
     case MOUSE_EVENT_MOVE:
-        eventType = kCGEventMouseMoved;
+        eventPosX = mouseEvent.x;
+        eventPosY = mouseEvent.y;
+        if(leftMouseDown)
+        {
+            mouseButton = kCGMouseButtonLeft;
+            eventType = kCGEventLeftMouseDragged;
+        }
+        else if(rightMouseDown)
+        {
+            mouseButton = kCGMouseButtonRight;
+            eventType = kCGEventRightMouseDragged;
+        }
+        else if(centerMouseDown)
+        {
+            mouseButton = kCGMouseButtonCenter;
+            eventType = kCGEventOtherMouseDragged;
+        }
+        else
+        {
+            eventType = kCGEventMouseMoved;
+        }
         break;
     case MOUSE_EVENT_DOWN:
             switch (mouseEvent.mouseButton)
@@ -196,14 +455,18 @@ int SendMouseEvent(const OSEvent mouseEvent)
                 case MOUSE_BUTTON_LEFT:
                     eventType = kCGEventLeftMouseDown;
                     mouseButton = kCGMouseButtonLeft;
+                    leftMouseDown = true;
                     break;
                 case MOUSE_BUTTON_RIGHT:
                     eventType = kCGEventRightMouseDown;
                     mouseButton = kCGMouseButtonRight;
+                    rightMouseDown = true;
                     break;
                 case MOUSE_BUTTON_MIDDLE:
                     eventType = kCGEventOtherMouseDown;
                     mouseButton = kCGMouseButtonCenter;
+                    centerMouseDown = true;
+                    break;
                 default:
                     break;
             }
@@ -215,14 +478,18 @@ int SendMouseEvent(const OSEvent mouseEvent)
             case MOUSE_BUTTON_LEFT:
                 eventType = kCGEventLeftMouseUp;
                 mouseButton = kCGMouseButtonLeft;
+                leftMouseDown = false;
                 break;
             case MOUSE_BUTTON_RIGHT:
                 eventType = kCGEventRightMouseUp;
                 mouseButton = kCGMouseButtonRight;
+                rightMouseDown = false;
                 break;
             case MOUSE_BUTTON_MIDDLE:
                 eventType = kCGEventOtherMouseUp;
                 mouseButton = kCGMouseButtonCenter;
+                centerMouseDown = false;
+                break;
             default:
                 break;
         }
@@ -232,17 +499,20 @@ int SendMouseEvent(const OSEvent mouseEvent)
         break;
     case MOUSE_EVENT_INVALID:
     default:
-        return -1;
+        return ERROR_INVALID_PARAM;
     }
     
     if(isScrollEvent)
-        event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo);
+        event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo*32);
     else
-        event = CGEventCreateMouseEvent(NULL, eventType, CGPointMake(mouseEvent.deltaX, mouseEvent.deltaY), mouseButton);
+        event = CGEventCreateMouseEvent(NULL, eventType, CGPointMake(eventPosX, eventPosY), mouseButton);
     
     CGEventPost(kCGHIDEventTap, event);
     
     CFRelease(event);
+    
+    lastEventPosX = eventPosX;
+    lastEventPosY = eventPosY;
     
     return 0;
 }
@@ -281,6 +551,9 @@ int SendKeyEvent(const OSEvent keyEvent)
     CGKeyCode code;
     bool keydown;
     
+    keydown = keyEvent.keyEvent == KEY_EVENT_DOWN;
+    code = keyEvent.scanCode;
+    
     CGEventRef event = CGEventCreateKeyboardEvent(NULL, code, keydown);
     CGEventPost(kCGHIDEventTap, event);
     CFRelease(event);
@@ -297,5 +570,19 @@ int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent)
 
 OSInterfaceError OSErrorToOSInterfaceError(int OSError)
 {
-    return OSInterfaceError::OS_E_SUCCESS;
+    switch (OSError) {
+        case ERROR_NO_IMP:
+            return OSInterfaceError::OS_E_NOT_IMPLEMENTED;
+            break;
+        case ERROR_INVALID_PARAM:
+            return OSInterfaceError::OS_E_INVALID_PARAM;
+            break;
+        case ERROR_COMM:
+            return OSInterfaceError::OS_E_COMMUNICATION_ERROR;
+            break;
+        case ERROR_UNKOWN:
+        default:
+            return OSInterfaceError::OS_E_SUCCESS;
+            break;
+    }
 }
