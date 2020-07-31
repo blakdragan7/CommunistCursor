@@ -176,7 +176,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(_In_ int nCode,_In_ WPARAM wParam,_In_ LPA
         event.eventType = OS_EVENT_KEY;
 
         KBDLLHOOKSTRUCT* msHook = (KBDLLHOOKSTRUCT*)lParam;
-        event.scanCode = msHook->scanCode;
+        event.scanCode = msHook->vkCode;
 
         switch(wParam)
         {
@@ -772,15 +772,15 @@ int SendKeyEvent(const OSEvent keyEvent)
     memset(&newInput, 0, sizeof(INPUT));
 
     newInput.type = INPUT_KEYBOARD;
-    newInput.ki.wScan = keyEvent.scanCode;
+    newInput.ki.wVk = keyEvent.scanCode;
 
     switch(keyEvent.keyEvent)
     {
     case KEY_EVENT_UP:
-        newInput.ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+        newInput.ki.dwFlags = KEYEVENTF_KEYUP;
         break;
     case KEY_EVENT_DOWN:
-        newInput.ki.dwFlags = KEYEVENTF_SCANCODE;
+        newInput.ki.dwFlags = 0;
         break;
     }
 
