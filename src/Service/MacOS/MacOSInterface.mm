@@ -408,15 +408,23 @@ void NativeUnhookAllEvents()
 
 int SendMouseEvent(const OSEvent mouseEvent)
 {
-    std::cout << mouseEvent << std::endl;
     CGEventType eventType = kCGEventMouseMoved;
     CGMouseButton mouseButton = kCGMouseButtonLeft;
     CGEventRef event;
+    
+    static int lastEventPosX = 0;
+    static int lastEventPosY = 0;
+    
+    int eventPosX = lastEventPosX;
+    int eventPosY = lastEventPosY;
+    
     bool isScrollEvent = false;
     
     switch (mouseEvent.mouseEvent)
     {
     case MOUSE_EVENT_MOVE:
+        eventPosX = mouseEvent.x;
+        eventPosY = mouseEvent.y;
         eventType = kCGEventMouseMoved;
         break;
     case MOUSE_EVENT_DOWN:
@@ -467,11 +475,14 @@ int SendMouseEvent(const OSEvent mouseEvent)
     if(isScrollEvent)
         event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo);
     else
-        event = CGEventCreateMouseEvent(NULL, eventType, CGPointMake(mouseEvent.x, mouseEvent.y), mouseButton);
+        event = CGEventCreateMouseEvent(NULL, eventType, CGPointMake(eventPosX, eventPosY), mouseButton);
     
     CGEventPost(kCGHIDEventTap, event);
     
     CFRelease(event);
+    
+    lastEventPosX = eventPosX;
+    lastEventPosY = eventPosY;
     
     return 0;
 }
