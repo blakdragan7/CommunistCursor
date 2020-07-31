@@ -1,7 +1,7 @@
 #ifndef KEY_CODES_H
 #define KEY_CODES_H
 
-enum class KeyCodes : int
+enum class KeyCode : int
 {
 	KC_A					= 65,
 	KC_B					= 66,
