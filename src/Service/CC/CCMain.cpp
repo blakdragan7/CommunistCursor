@@ -515,7 +515,7 @@ bool CCMain::ReceivedNewInputEvent(OSEvent event)
 	}
 	DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::ProcessInputEvent, this, event));
 
-	return !_currentEntity->GetIsLocal() && (event.eventType == OS_EVENT_MOUSE && event.mouseEvent != MOUSE_EVENT_MOVE);
+	return !_currentEntity->GetIsLocal() && ((event.eventType == OS_EVENT_MOUSE && event.mouseEvent != MOUSE_EVENT_MOVE) || (event.eventType != OS_EVENT_MOUSE));
 }
 
 // move these somewhere else later
