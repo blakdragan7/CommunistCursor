@@ -53,9 +53,7 @@ OSEvent OSInputEventPacket::AsOSEvent() const
 {
 	OSEvent ret;
 
-	EventPacketType leventType = (EventPacketType)ntohs((short)eventType);
-
-	switch (leventType)
+	switch (eventType)
 	{
 	case EventPacketType::Key:
 		ret.eventType = OS_EVENT_KEY;
