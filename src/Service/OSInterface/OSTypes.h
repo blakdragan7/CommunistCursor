@@ -58,7 +58,7 @@ struct IPAdressInfoHints
 
 // Event Types
 
-enum OSEventType
+enum OSEventType : int16_t
 {
     OS_EVENT_MOUSE = 0,
     OS_EVENT_KEY = 1,
@@ -66,7 +66,7 @@ enum OSEventType
     OS_EVENT_INVALID = -1
 };
 
-enum MouseEventType
+enum MouseEventType : int16_t
 {
     MOUSE_EVENT_MOVE = 0,
     MOUSE_EVENT_DOWN = 1,
@@ -75,7 +75,7 @@ enum MouseEventType
     MOUSE_EVENT_INVALID = -1
 };
 
-enum MouseButton
+enum MouseButton : int16_t
 {
     MOUSE_BUTTON_LEFT = 0,
     MOUSE_BUTTON_RIGHT = 1,
@@ -84,7 +84,7 @@ enum MouseButton
     MOUSE_BUTTON_INVALID = -1
 };
 
-enum KeyEventType
+enum KeyEventType : int16_t
 {
     KEY_EVENT_DOWN = 0,
     KEY_EVENT_UP = 1,
