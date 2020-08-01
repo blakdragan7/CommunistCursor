@@ -344,7 +344,7 @@ void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _isLocalEntity(true), \
-_shouldBeRunningCommThread(true), _delegate(0)
+_shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0)
 {
     // this is local so we make the server here
     int port = 1045; // this should be configured somehow at some point
@@ -360,7 +360,7 @@ _shouldBeRunningCommThread(true), _delegate(0)
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID, Socket* socket) : _tcpCommQueue(0), _entityID(entityID), _udpCommSocket(socket),\
-_isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0)
+_isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false)
 {
     // this is a remote entity so we create a tcp client here
     std::string address = socket->Address();
@@ -482,6 +482,7 @@ void CCNetworkEntity::RemoveDisplay(std::shared_ptr<CCDisplay> display)
 void CCNetworkEntity::SetDisplayOffsets(Point offsets)
 {
     _offsets = offsets;
+    _wasGivenOffset = true;
 }
 
 const std::shared_ptr<CCDisplay> CCNetworkEntity::DisplayForPoint(const Point& point)const
@@ -551,10 +552,15 @@ void CCNetworkEntity::ClearAllEntities()
     _rightEntites.clear();
 }
 
-void CCNetworkEntity::LoadFrom(const CCConfigurationManager& manager)
+bool CCNetworkEntity::LoadFrom(const CCConfigurationManager& manager)
 {
-    manager.GetValue({ "Entities", _entityID }, _offsets);
-    SetDisplayOffsets(_offsets);
+    if (manager.GetValue({ "Entities", _entityID }, _offsets))
+    {
+        SetDisplayOffsets(_offsets);
+        return true;
+    }
+
+    return false;
 }
 
 void CCNetworkEntity::SaveTo(CCConfigurationManager& manager) const

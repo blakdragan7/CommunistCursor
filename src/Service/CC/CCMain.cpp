@@ -60,10 +60,15 @@ void CCMain::SetupEntityConnections()
 	for (int i = 0; i < _entites.size(); i++)
 	{
 		auto entity = _entites[i];
-
-		for (int l = i + 1; l < _entites.size(); l++)
+		if (entity->GetWasGivenOffset())
 		{
-			entity->AddEntityIfInProximity(_entites[l].get());
+			for (int l = i + 1; l < _entites.size(); l++)
+			{
+				if (_entites[l]->GetWasGivenOffset())
+				{
+					entity->AddEntityIfInProximity(_entites[l].get());
+				}
+			}
 		}
 	}
 }

@@ -57,7 +57,7 @@ private:
     std::vector<std::shared_ptr<CCDisplay>> _displays;
     std::string _entityID;
     bool _isLocalEntity;
-
+    bool _wasGivenOffset;
     std::mutex      _tcpMutex;
 
     // only used client side
@@ -121,7 +121,7 @@ public:
     // clears out all connected entities
     void ClearAllEntities();
 
-    void LoadFrom(const CCConfigurationManager& manager);
+    bool LoadFrom(const CCConfigurationManager& manager);
     void SaveTo(CCConfigurationManager& manager)const;
 
     void ShutdownThreads();
@@ -158,6 +158,7 @@ public:
     inline const Point& GetOffsets()const { return _offsets; }
     inline const Rect& GetBounds()const { return _totalBounds; }
     inline const Socket* GetUDPSocket()const { return _udpCommSocket.get(); }
+    inline const bool GetWasGivenOffset()const { return _wasGivenOffset; }
 
     // setters
 
