@@ -25,8 +25,13 @@ void CCBroadcastManager::operator=(CCBroadcastManager&& other)noexcept
 
 bool CCBroadcastManager::BroadcastNow(std::string serverAddress, int serverPort)
 {
-	_internalSocket->SetIsBroadcastable(true);
-
+	SocketError error = _internalSocket->SetIsBroadcastable(true);
+    if (error != SocketError::SOCKET_E_SUCCESS)
+    {
+        LOG_ERROR << "Error trying to set Broadcast " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
+        return false;
+    }
+    
 	AddressPacket addressPacket;
 
 	memcpy(addressPacket.Address, serverAddress.c_str(), serverAddress.length());
@@ -34,11 +39,11 @@ bool CCBroadcastManager::BroadcastNow(std::string serverAddress, int serverPort)
 	addressPacket.Port = serverPort;
 	
 	//std::cout << "Broadcasting Address As {" << addressPacket.Address << "," << addressPacket.Port << "}" << std::endl;
-	SocketError error = _internalSocket->SendTo(&addressPacket, sizeof(addressPacket));
+	error = _internalSocket->SendTo(&addressPacket, sizeof(addressPacket));
 
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error trying to send Broadcast " << SockErrorToString(error) << std::endl;
+        LOG_ERROR << "Error trying to send Broadcast " << SOCK_ERR_STR(_internalSocket.get(), error) << std::endl;
 		return false;
 	}
 
