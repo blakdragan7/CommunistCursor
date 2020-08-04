@@ -581,6 +581,7 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
             event.eventType = OS_EVENT_KEY;
             event.keyEvent = pressed == 1 ? KEY_EVENT_DOWN : KEY_EVENT_UP;
         }
+            break;
         case kHIDPage_Button:
         {
             event.eventType = OS_EVENT_MOUSE;
@@ -602,6 +603,7 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
             }
             
             event.mouseEvent = integerValue ? MOUSE_EVENT_DOWN : MOUSE_EVENT_UP;
+            break;
         }
     
         case kHIDPage_GenericDesktop:
@@ -635,6 +637,7 @@ void myHIDKeyboardCallback( void* context,  IOReturn result,  void* sender,  IOH
                     break;
             }
         }
+            break;
     }
     
     if(osi->ConsumeInputEvent(event))
