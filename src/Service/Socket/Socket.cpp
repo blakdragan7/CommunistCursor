@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <netdb.h>
+#include <sys/errno.h>
 
 #define ioctlsocket ioctl
 
@@ -563,14 +564,22 @@ SocketError Socket::SetIsBroadcastable(bool _isBroadcastable)
     // early out if nothing to do
     if (_isBroadcast == _isBroadcastable)
         return SocketError::SOCKET_E_SUCCESS;
-
+#ifdef _WIN32
     char b = _isBroadcastable ? '1' : '0';
 
-    char broadcast = '1';
-    int res = setsockopt((SOCKET)_sfd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
+    int res = setsockopt((SOCKET)_sfd, SOL_SOCKET, SO_BROADCAST, &b, sizeof(b));
+#else
+    int b = _isBroadcastable ? '1' : '0';
+
+    int res = setsockopt((SOCKET)_sfd, SOL_SOCKET, SO_BROADCAST, &b, sizeof(b));
+#endif
     if (res < 0)
     {
+#ifndef _WIN32
+        lastOSErr = errno;
+#else
         lastOSErr = res;
+#endif
         return SOCK_ERR(res);
     }
 
