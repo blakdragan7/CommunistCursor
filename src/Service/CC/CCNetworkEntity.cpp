@@ -171,6 +171,12 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
             return error;
         }
 
+        if (received == 0)
+        {
+            // server disconnected probably
+            return SocketError::SOCKET_E_BROKEN_PIPE;
+        }
+
         if (received == sizeof(packet) && packet.MagicNumber == P_MAGIC_NUMBER)
         {
             error = SendAwk(server);
@@ -313,6 +319,7 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
         else
         {
             LOG_ERROR << "Received Invalid TCP Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+            return SocketError::SOCKET_E_BROKEN_PIPE;
         }
     }
     else return SocketError::SOCKET_E_BROKEN_PIPE;
