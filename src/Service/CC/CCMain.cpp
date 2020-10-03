@@ -486,6 +486,7 @@ void CCMain::EntityLost(CCNetworkEntity* entity)
 
 void CCMain::LostServer()
 {
+	LOG_INFO << "Lost Connection To Server" << std::endl;
 	// force client to re-listen for server
 	_client->StopClientSocket();
 	_client->SetNeedsNewServer();
