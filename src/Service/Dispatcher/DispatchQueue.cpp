@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <iostream>
+#include <algorithm>
 
 DispatchQueue::DispatchQueue(bool isSerial) : _isSerial(isSerial), _isRunningJob(false)
 {
