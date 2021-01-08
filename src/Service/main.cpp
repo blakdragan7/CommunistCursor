@@ -117,7 +117,7 @@ int ParaseArguments(int argc, char* argv[])
     args::Command printKeyCodes(commandGroup, "printKeyCodes", "Hook keyboard events and print virtual keys generated from those events");
     //args::Command installService(commandGroup, "installService", "Install as a service");
     args::Group arguments(parser, "arguments", args::Group::Validators::DontCare, args::Options::Global);
-    args::ValueFlag<std::string> logLevel(arguments, "logLevel", "Sets the log level for the program valid options (VERBOSE, DEBUG, INFO, WARN, ERROR, NONE)", { 'l' });
+    args::ValueFlag<std::string> logLevel(arguments, "logLevel", "Sets the log level for the program valid options (DEBUG, INFO, WARN, ERROR, NONE)", { 'l' });
     args::ValueFlag<unsigned int> numThreads(arguments, "threads", "Sets the number of threads in the pool. Must be > 0", {'t'});
     args::Flag isServer(arguments, "isServer", "Set to Server mode for socket test", { 's', "server" });
     args::Flag shouldPause(arguments, "shouldPause", "Pauses at tend of execution", {'p', "pause"});
