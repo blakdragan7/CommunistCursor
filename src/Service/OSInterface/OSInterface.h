@@ -124,8 +124,16 @@ public:
      *
      * returns an OSInterfaceError
      */
-
     OSInterfaceError GetLocalHostName(std::string &hostName);
+
+    /*
+     *  Used to get a unique ID for this computer. It does not use anything specific to the computer
+     *  for now so overlap, though extremely unliekly, is technically possible
+     *
+     * {UUID} is the returned Unique ID
+     * {length} is the desired length of the generated UUID
+     */
+    OSInterfaceError GetUUID(std::string& UUID, size_t length);
 
     /*
      * OSMainLoop is a way to run the native event system of an OS. This should be called in the
@@ -137,7 +145,7 @@ public:
      */
     void StopMainLoop();
     /*
-     * Userd for Updating the event loop internally.
+     * Used for Updating the event loop internally.
      * Return value determins if the event is consumed (not passed to OS)
      * True means it is and False means it lets the OS handle it
      *

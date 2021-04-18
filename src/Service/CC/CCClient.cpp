@@ -35,11 +35,19 @@ void CCClient::ConnectToServer(std::string address, int port)
 	OSInterfaceError osError = OSInterface::SharedInterface().GetLocalHostName(hostName);
 	if (osError != OSInterfaceError::OS_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Trying to get Local Host Name\n";
+		LOG_ERROR << "Error Trying to get Local Host Name " << OSInterfaceErrorToString(osError) << std::endl;
 		return;
 	}
 
-	EntityIDPacket idPacket(hostName);
+	std::string uniqueID;
+	osError = OSInterface::SharedInterface().GetUUID(uniqueID, 32);
+	if (osError != OSInterfaceError::OS_E_SUCCESS)
+	{
+		LOG_ERROR << "Error Trying to get UUID " << OSInterfaceErrorToString(osError) << std::endl;
+		return;
+	}
+
+	EntityIDPacket idPacket(hostName, uniqueID);
 
 	error = servSocket.Send((char*)&idPacket, sizeof(EntityIDPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
@@ -68,7 +76,7 @@ void CCClient::ConnectToServer(std::string address, int port)
 		return;
 	}
 
-	for (auto display : _displayList)
+	for (auto& display : _displayList)
 	{
 		DisplayListDisplayPacket displayPacket;
 

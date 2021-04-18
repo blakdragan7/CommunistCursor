@@ -17,6 +17,9 @@ OSInterface& OSInterface::SharedInterface()
 
 OSInterface::OSInterface() :_shouldRunMainloop(true), _hasHookedEvents(false)
 {
+    // seed the random generator with current time
+    srand(time(0));
+
     int ret = StartupOSConnection();
     if (ret != 0)
     {
@@ -216,6 +219,26 @@ OSInterfaceError OSInterface::GetLocalHostName(std::string& hostName)
     if (ret != 0)
         return OSErrorToOSInterfaceError(ret);
     
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
+OSInterfaceError OSInterface::GetUUID(std::string& UUID, size_t length)
+{
+    static char tchar[] =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+/?.>,<;:'\"\\|";
+
+    static size_t possibleChars = sizeof(tchar);
+
+    if (length <= 0)
+    {
+        return OSInterfaceError::OS_E_INVALID_PARAM;
+    }
+
+    for (size_t i = 0; i < length; i++)
+    {
+        UUID += tchar[rand()%(possibleChars-1)];
+    }
+
     return OSInterfaceError::OS_E_SUCCESS;
 }
 

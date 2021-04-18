@@ -56,6 +56,7 @@ private:
     std::unique_ptr<Socket> _tcpCommSocket; // is a server on local entities and a client for remote
     std::vector<std::shared_ptr<CCDisplay>> _displays;
     std::string _entityID;
+    std::string _entityName;
     bool _isLocalEntity;
     bool _wasGivenOffset;
     std::mutex      _tcpMutex;
@@ -93,8 +94,8 @@ private:
     void HandleServerTCPCommJob(Socket* server);
 
 public:
-    CCNetworkEntity(std::string entityID, bool isServer = false);
-    CCNetworkEntity(std::string entityID, Socket* socket);
+    CCNetworkEntity(std::string entityID, std::string entityName, bool isServer = false);
+    CCNetworkEntity(std::string entityID, std::string entityName, Socket* socket);
     ~CCNetworkEntity();
     // converts event into the appropriate packet and sends it over with a header
     void SendOSEvent(const OSEvent& event);
@@ -154,6 +155,7 @@ public:
     // gettters
 
     inline const std::string& GetID()const { return _entityID; }
+    inline const std::string& GetName()const { return _entityName; }
     inline bool GetIsLocal()const {return _isLocalEntity;};
     inline const Point& GetOffsets()const { return _offsets; }
     inline const Rect& GetBounds()const { return _totalBounds; }

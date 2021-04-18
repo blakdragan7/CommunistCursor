@@ -235,9 +235,19 @@ void CCMain::SetupLocalEntity(bool isServer)
 		hostName = "Server";
 	}
 
+	std::string uniqueID = _localID;
+	if (uniqueID == "")
+	{
+		error = OSInterface::SharedInterface().GetUUID(uniqueID, 32);
+		if (error != OSInterfaceError::OS_E_SUCCESS)
+		{
+			LOG_ERROR << "Error Trying to get UUID " << OSInterfaceErrorToString(error) << std::endl;
+			return;
+		}
+	}
 	// setup this computers entity
 
-	_localEntity = std::make_shared<CCNetworkEntity>(hostName, isServer);
+	_localEntity = std::make_shared<CCNetworkEntity>(uniqueID, hostName,isServer);
 	_currentEntity = _localEntity.get();
 
 	for (auto display : displayList)
@@ -246,6 +256,8 @@ void CCMain::SetupLocalEntity(bool isServer)
 	}
 
 	this->NewEntityDiscovered(_localEntity);
+
+	this->SaveAll();
 }
 
 CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)),
@@ -396,6 +408,11 @@ void CCMain::LoadAll(std::string path)
 
 	if (_configManager.LoadFromFile(path))
 	{
+		if (_configManager.GetValue<std::string>({ "Local", "UUID" }, _localID) == false)
+		{
+			_localID = "";
+		}
+
 		for (auto entity : _entites)
 		{
 			entity->LoadFrom(_configManager);
@@ -412,6 +429,11 @@ void CCMain::SaveAll(std::string path)
 	if (path == "")
 	{
 		path = _configFile;
+	}
+
+	if (_localEntity)
+	{
+		_configManager.SetValue({"Local", "UUID"}, _localEntity->GetID());
 	}
 
 	for (auto entity : _entites)
@@ -455,7 +477,7 @@ void CCMain::SetupGlobalPositions()
 
 void CCMain::NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity)
 {
-	LOG_INFO << "New Entity Discovered {" << entity->GetID() << "}" << std::endl;
+	LOG_INFO << "New Entity Discovered { id: " << entity->GetID() << " , name: " << entity->GetName() << " }" << std::endl;
 
 	entity->LoadFrom(_configManager);
 	entity->SetDelegate(this);

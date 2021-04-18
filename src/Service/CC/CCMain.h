@@ -51,6 +51,7 @@ private:
 	bool						_ignoreInputEvent;
 
 	std::string					_configFile;
+	std::string					_localID;
 	CCConfigurationManager		_configManager;
 
 private:

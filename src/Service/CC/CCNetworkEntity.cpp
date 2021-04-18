@@ -350,7 +350,7 @@ void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
     }
 }
 
-CCNetworkEntity::CCNetworkEntity(std::string entityID, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _isLocalEntity(true), \
+CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _isLocalEntity(true), \
 _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0)
 {
     // this is local so we make the server here
@@ -366,7 +366,7 @@ _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpComm
     }
 }
 
-CCNetworkEntity::CCNetworkEntity(std::string entityID, Socket* socket) : _tcpCommQueue(0), _entityID(entityID), _udpCommSocket(socket),\
+CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, Socket* socket) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _udpCommSocket(socket),\
 _isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false)
 {
     // this is a remote entity so we create a tcp client here
@@ -573,6 +573,7 @@ bool CCNetworkEntity::LoadFrom(const CCConfigurationManager& manager)
 void CCNetworkEntity::SaveTo(CCConfigurationManager& manager) const
 {
     manager.SetValue({ "Entities", _entityID }, _offsets);
+    manager.SetValue({ "Entities", _entityID , "Name"}, _entityName);
 }
 
 void CCNetworkEntity::ShutdownThreads()

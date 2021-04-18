@@ -40,16 +40,18 @@ void CCGuiService::SocketAcceptThread()
 			return;
 	}
 	
-	DISPATCH_ASYNC(([acceptedSocket, this]() {
+	//DISPATCH_ASYNC(([acceptedSocket, this]() {
 		using namespace nlohmann;
 
 		json entites;
 		std::vector<json> entityJsons;
 
+		LOG_DEBUG << "GUI Socket Accepted" << std::endl;
+
 		const std::vector<std::shared_ptr<CCNetworkEntity>>& entitesToConfigure = _delegate->GetEntitiesToConfigure();
 		const std::vector<int>& globalBounds = _delegate->GetGlobalBounds();
 
-		for (auto entity : entitesToConfigure)
+		for (auto& entity : entitesToConfigure)
 		{
 			json entityJson;
 
@@ -76,7 +78,7 @@ void CCGuiService::SocketAcceptThread()
 		entites["entites"] = entityJsons;
 		entites["globalBounds"] = globalBounds;
 
-		SocketError error = acceptedSocket->Send(entites.dump());
+		/*SocketError*/ error = acceptedSocket->Send(entites.dump());
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
 			LOG_ERROR << "Error sending json packet " << SOCK_ERR_STR(_serverSocket.get(), error) << std::endl;
@@ -95,13 +97,16 @@ void CCGuiService::SocketAcceptThread()
 		// app was closed before we finished
 		if (received == 0)
 		{
+			LOG_DEBUG << "No GUI Config Received" << std::endl;
 			// clearly we don't want to confiure to we just return success
 			return;
 		}
 
+		LOG_DEBUG << "GUI Service Received " << buff << std::endl;
+
 		json offsets = json::parse(buff);
 
-		for (auto entity : entitesToConfigure)
+		for (auto& entity : entitesToConfigure)
 		{
 			auto itr = offsets.find(entity->GetID());
 			if (itr != offsets.end())
@@ -114,7 +119,7 @@ void CCGuiService::SocketAcceptThread()
 		delete acceptedSocket;
 
 		_delegate->EntitiesFinishedConfiguration();
-	}));
+	//}));
 	
 	if (_shouldRunServer)
 		DISPATCH_ASYNC(std::bind(&CCGuiService::SocketAcceptThread, this));

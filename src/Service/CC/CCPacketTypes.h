@@ -34,16 +34,24 @@ struct EntityIDPacket
 	unsigned int MagicNumber;
 	size_t IDLength;
 	char EntityID[256];
-	EntityIDPacket() : MagicNumber(P_MAGIC_NUMBER), IDLength(0) {}
-    EntityIDPacket(std::string id) : MagicNumber(P_MAGIC_NUMBER), IDLength(id.size())
+	size_t NameLength;
+	char EntityName[256];
+	EntityIDPacket() : MagicNumber(P_MAGIC_NUMBER), IDLength(0), NameLength(0), EntityID(""), EntityName(""){}
+    EntityIDPacket(std::string id, std::string name) : MagicNumber(P_MAGIC_NUMBER), IDLength(0), NameLength(0)
     {
-        size_t size = id.size();
-        if(size > 255)size=255;
+        size_t id_size = id.size();
+        if(id_size > 255)id_size =255;
         memset(EntityID,0,256);
-        memcpy(EntityID, id.c_str(), size);
-        EntityID[size] = 0;
-        IDLength = size;
-        
+        memcpy(EntityID, id.c_str(), id_size);
+        EntityID[id_size] = 0;
+        IDLength = id_size;
+
+		size_t name_size = name.size();
+		if (name_size > 255)name_size = 255;
+		memset(EntityName, 0, 256);
+		memcpy(EntityName, name.c_str(), name_size);
+		EntityName[name_size] = 0;
+		NameLength = name_size;
     }
 };
 

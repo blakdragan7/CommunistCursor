@@ -23,7 +23,7 @@ private:
 	void SocketAcceptThread();
 
 public:
-	CCGuiService(IGuiServiceInterface* _delegate, int guiPort = 1049, std::string address = "127.0.0.1");
+	CCGuiService(IGuiServiceInterface* _delegate, int guiPort = 10049, std::string address = "127.0.0.1");
 
 	bool StartGUIServer();
 	bool StopGUIServer();

@@ -112,7 +112,7 @@ void CCServer::AcceptServerSocket()
 
 	// socket is owned by entity as a uniqe_ptr so no delete needed
 	Socket* udpRemoteClientSocket = new Socket(acceptedSocket->Address(), addPacket.Port, acceptedSocket->CanUseIPV6(), SocketProtocol::SOCKET_P_UDP);
-	std::shared_ptr<CCNetworkEntity> entity(new CCNetworkEntity(idPacket.EntityID, udpRemoteClientSocket));
+	std::shared_ptr<CCNetworkEntity> entity(new CCNetworkEntity(idPacket.EntityID, idPacket.EntityName, udpRemoteClientSocket));
 
 	received = 0;
 	error = acceptedSocket->Recv((char*)&listHeaderPacket, sizeof(DisplayListHeaderPacket), &received);
