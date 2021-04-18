@@ -8,6 +8,7 @@
 #include "../OSInterface/OSTypes.h"
 
 class Socket;
+class CCNetworkEntity;
 class CCClient
 {
 private:
@@ -23,7 +24,7 @@ public:
     CCClient(int listenPort);
     // connects to and performs handshake with server.
     // gives list of native display and local address to server
-    void ConnectToServer(std::string address, int port);
+    void ConnectToServer(std::shared_ptr<CCNetworkEntity> localEntity, std::string address, int port);
     // Waits for a single OS event from the server on {port}
     // {port} is cached in the internal socket and for a new value to be used ResetSocket
     // must be called first

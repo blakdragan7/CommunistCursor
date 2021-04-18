@@ -2,7 +2,7 @@
 #include "../Socket/Socket.h"
 #include "../OSInterface/OSInterface.h"
 #include "../OSInterface/PacketTypes.h"
-
+#include "CCNetworkEntity.h"
 #include "CCPacketTypes.h"
 #include "CCLogger.h"
 #include <exception>
@@ -17,7 +17,7 @@ CCClient::CCClient(int listenPort) : _serverAddress("0.0.0.0"), _listenPort(list
 	}
 }
 
-void CCClient::ConnectToServer(std::string address, int port)
+void CCClient::ConnectToServer(std::shared_ptr<CCNetworkEntity> localEntity, std::string address, int port)
 {
 	Socket servSocket(address, port, false, SocketProtocol::SOCKET_P_TCP);
 
@@ -31,23 +31,7 @@ void CCClient::ConnectToServer(std::string address, int port)
 	DisplayListHeaderPacket listHeader;
 	listHeader.NumberOfDisplays = (int)_displayList.size();
 
-	std::string hostName;
-	OSInterfaceError osError = OSInterface::SharedInterface().GetLocalHostName(hostName);
-	if (osError != OSInterfaceError::OS_E_SUCCESS)
-	{
-		LOG_ERROR << "Error Trying to get Local Host Name " << OSInterfaceErrorToString(osError) << std::endl;
-		return;
-	}
-
-	std::string uniqueID;
-	osError = OSInterface::SharedInterface().GetUUID(uniqueID, 32);
-	if (osError != OSInterfaceError::OS_E_SUCCESS)
-	{
-		LOG_ERROR << "Error Trying to get UUID " << OSInterfaceErrorToString(osError) << std::endl;
-		return;
-	}
-
-	EntityIDPacket idPacket(hostName, uniqueID);
+	EntityIDPacket idPacket(localEntity->GetID(), localEntity->GetName());
 
 	error = servSocket.Send((char*)&idPacket, sizeof(EntityIDPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)

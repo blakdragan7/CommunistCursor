@@ -56,6 +56,7 @@ void CCGuiService::SocketAcceptThread()
 			json entityJson;
 
 			entityJson["id"] = entity->GetID();
+			entityJson["name"] = entity->GetName();
 
 			std::vector<json> displays;
 
