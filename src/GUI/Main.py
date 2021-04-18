@@ -9,11 +9,11 @@ from MainWindow import MainWindow
 if __name__ == "__main__":
 
     if len(sys.argv) == 3:
-        socketIP = sys.argv[0]
-        socketPort = sys.argv[1]
+        socketIP = sys.argv[1]
+        socketPort = sys.argv[2]
     else:
         socketIP = "127.0.0.1"
-        socketPort = 1049
+        socketPort = 10049
 
     values = None
     

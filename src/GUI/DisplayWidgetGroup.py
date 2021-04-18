@@ -54,6 +54,25 @@ class DisplayWidgetGroup(QWidget):
 
         self.UpdateDisplaysGroupBounds()
 
+    def MoveBounds(self, deltaX, deltaY):
+        self.minX += deltaX
+        self.maxX += deltaX
+        self.minY += deltaY
+        self.maxY += deltaY
+
+        self.UpdateDisplaysGroupBounds()
+
+    def MoveBoundsTo(self, newMinX, newMinY):
+        sizeX = self.maxX - self.minX
+        sizeY = self.maxY - self.minY
+
+        self.minX = newMinX
+        self.minY = newMinY
+        self.maxX = self.minX + sizeX
+        self.maxY = self.minY + sizeY
+
+        self.UpdateDisplaysGroupBounds()
+
     def resizeEvent(self, event):
         self.labelFrame.setGeometry(0, 0, self.width(), self.height())
         self.label.setGeometry(0, 0, self.width(), self.height())

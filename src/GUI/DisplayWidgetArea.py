@@ -44,6 +44,13 @@ class DisplayWidgetArea(QFrame):
             group.SetWidgetBounds([0, 0, self.width(), self.height()])
             group.UpdateGeometry()
 
+    def MoveGroupsThatAreColliding(self):
+        for ngroup in self.displaysGroups:
+            collidedGroup = self.CheckCollision(ngroup)
+            if collidedGroup:
+                ngroup.MoveBoundsTo(collidedGroup.maxX, collidedGroup.maxY)
+                ngroup.UpdateGeometry();
+
     # snap display groups to not overlap
     def CheckCollision(self, group):
         for ngroup in self.displaysGroups:

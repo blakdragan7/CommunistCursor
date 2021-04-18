@@ -50,6 +50,7 @@ class MainWindow(QWidget):
         entityArray = entityData["entites"]
         for entity in entityArray:
             self.displayArea.AddDisplayGroup(entity["displays"], entity["id"])
+        self.displayArea.MoveGroupsThatAreColliding();
 
         self.displayArea.SetGlobalBounds(entityData["globalBounds"])
 
