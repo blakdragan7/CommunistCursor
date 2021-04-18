@@ -10,10 +10,11 @@ from DisplayWidget import DisplayWidget
 '''
 
 class DisplayWidgetGroup(QWidget):
-    def __init__(self, parent, id):
+    def __init__(self, parent, id, name):
         super().__init__(parent)
         self.displays = []
         self.groupID = id
+        self.groupName = name
         self.displayArea = parent
 
         self.minX = 1000000
@@ -31,7 +32,7 @@ class DisplayWidgetGroup(QWidget):
         self.labelFrame.setPalette(p)
 
         self.label = QLabel(self.labelFrame)
-        self.label.setText(self.groupID)
+        self.label.setText(self.groupName)
         self.label.setFont(QFont("arial", 32))
         self.label.setAlignment(Qt.AlignCenter)
 

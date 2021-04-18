@@ -49,7 +49,7 @@ class MainWindow(QWidget):
     def SetupDisplaysWithEntityData(self, entityData):
         entityArray = entityData["entites"]
         for entity in entityArray:
-            self.displayArea.AddDisplayGroup(entity["displays"], entity["id"])
+            self.displayArea.AddDisplayGroup(entity["displays"], entity["id"], entity["name"])
         self.displayArea.MoveGroupsThatAreColliding();
 
         self.displayArea.SetGlobalBounds(entityData["globalBounds"])
