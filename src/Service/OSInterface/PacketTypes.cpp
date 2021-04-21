@@ -13,35 +13,38 @@ OSInputEventPacket::OSInputEventPacket() : data1(0), data2(0), data3(0), data4(0
 
 OSInputEventPacket::OSInputEventPacket(const OSEvent& event) : data1(0), data2(0), data3(0), data4(0), nativeScreenID(htons(event.nativeScreenID))
 {
+
 	switch (event.eventType)
 	{
 	case OS_EVENT_KEY:
-		eventType = EventPacketType::Key;
-		scancode = htons(event.scanCode);
-		isDown = event.keyEvent == KEY_EVENT_DOWN;
+		eventType = (EventPacketType)htonl((u_long)EventPacketType::Key);
+		scancode = htonl(event.scanCode);
+		isDown = htonl(event.keyEvent == KEY_EVENT_DOWN);
 		break;
 	case OS_EVENT_MOUSE:
+	{
 		switch (event.mouseEvent)
 		{
 		case MOUSE_EVENT_DOWN:
 		case MOUSE_EVENT_UP:
-			mouseButton = htons((short)event.mouseButton);
-			isDown = event.mouseEvent == MOUSE_EVENT_DOWN;
-			eventType = EventPacketType::MouseButton;
+			mouseButton = htonl(event.mouseButton);
+			isDown = htonl(event.mouseEvent == MOUSE_EVENT_DOWN);
+			eventType = (EventPacketType)htonl((u_long)EventPacketType::MouseButton);
 			break;
 		case MOUSE_EVENT_MOVE:
-			eventType = EventPacketType::MouseMove;
-			deltaX = htons(event.deltaX);
-			deltaY = htons(event.deltaY);
-			posX = htons(event.x);
-			posY = htons(event.y);
+			eventType = (EventPacketType)htonl((u_long)EventPacketType::MouseMove);
+			deltaX = htonl(event.deltaX);
+			deltaY = htonl(event.deltaY);
+			posX = htonl(event.x);
+			posY = htonl(event.y);
 			break;
 		case MOUSE_EVENT_SCROLL:
-			eventType = EventPacketType::MouseWheel;
-			wheelData = (int16_t)htonl(event.extendButtonInfo);
-        case MOUSE_EVENT_INVALID:
-                break;
+			eventType = (EventPacketType)htonl((u_long)EventPacketType::MouseWheel);
+			wheelData = htonl(event.extendButtonInfo);
+		case MOUSE_EVENT_INVALID:
+			break;
 		}
+	}
 		break;
 	case OS_EVENT_HID:
 	default:
@@ -53,14 +56,14 @@ OSEvent OSInputEventPacket::AsOSEvent() const
 {
 	OSEvent ret;
 
-	EventPacketType leventType = eventType;
+	EventPacketType leventType = (EventPacketType)ntohl((u_long)eventType);
 
 	switch (leventType)
 	{
 	case EventPacketType::Key:
 		ret.eventType = OS_EVENT_KEY;
-		ret.keyEvent = isDown ? KEY_EVENT_DOWN : KEY_EVENT_UP;
-		ret.scanCode = ntohs(scancode);
+		ret.keyEvent = ntohl(isDown) ? KEY_EVENT_DOWN : KEY_EVENT_UP;
+		ret.scanCode = ntohl(scancode);
 		break;
 	case EventPacketType::MouseWheel:
 		ret.eventType = OS_EVENT_MOUSE;
@@ -69,16 +72,16 @@ OSEvent OSInputEventPacket::AsOSEvent() const
 		break;
 	case EventPacketType::MouseButton:
 		ret.eventType = OS_EVENT_MOUSE;
-		ret.mouseEvent = isDown ? MOUSE_EVENT_DOWN : MOUSE_EVENT_UP;
-		ret.mouseButton = (MouseButton)ntohs(mouseButton);
+		ret.mouseEvent = ntohl(isDown) ? MOUSE_EVENT_DOWN : MOUSE_EVENT_UP;
+		ret.mouseButton = (MouseButton)ntohl(mouseButton);
 		break;
 	case EventPacketType::MouseMove:
 		ret.eventType = OS_EVENT_MOUSE;
 		ret.mouseEvent = MOUSE_EVENT_MOVE;
-		ret.deltaX = ntohs(deltaX);
-		ret.deltaY = ntohs(deltaY);
-		ret.x =  ntohs(posX);
-		ret.y =  ntohs(posY);
+		ret.deltaX = ntohl(deltaX);
+		ret.deltaY = ntohl(deltaY);
+		ret.x =  ntohl(posX);
+		ret.y =  ntohl(posY);
 		break;
     case EventPacketType::INVALID:
         break;

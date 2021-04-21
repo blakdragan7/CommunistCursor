@@ -16,25 +16,25 @@ enum class EventPacketType : unsigned char
 struct OSInputEventPacket
 {
     union {
-        int16_t posX;
-        int16_t wheelData;
+        int32_t posX;
+        int32_t wheelData;
 
-        uint16_t mouseButton;
-        uint16_t scancode;
-        uint16_t data1;
+        int32_t mouseButton;
+        int32_t scancode;
+        int32_t data1;
     };
     union {
-        int16_t posY;
-        uint16_t isDown;
-        uint16_t data2;
+        int32_t posY;
+        int32_t isDown;
+        int32_t data2;
     };
     union {
-        int16_t deltaX;
-        int16_t data3;
+        int32_t deltaX;
+        int32_t data3;
     };
     union {
-        int16_t deltaY;
-        int16_t data4;
+        int32_t deltaY;
+        int32_t data4;
     };
 
     uint16_t nativeScreenID;
