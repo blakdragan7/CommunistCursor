@@ -156,7 +156,8 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 	if (_currentEntity->GetEntityForPointInJumpZone(offsetPos, &nextEntity, direction))
 	{
 		// we have a jump zone
-		LOG_INFO << "Jump To " << nextEntity->GetID() << std::endl;
+		LOG_INFO << "Jump To { id: " << nextEntity->GetID() << " , name: " << nextEntity->GetName() << " }" << std::endl;
+		LOG_INFO << "From { id: " << _currentEntity->GetID() << " , name: " << _currentEntity->GetName() << " }" << std::endl;
 
 		// hide mouse
 		LOG_DEBUG << "Hide Mouse Current" << std::endl;
@@ -192,7 +193,7 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 			DISPATCH_ASYNC([localEvent]()
 			{OSInterface::SharedInterface().SendMouseEvent(localEvent); })
 
-				_ignoreInputEvent = true;
+			_ignoreInputEvent = true;
 		}
 	}
 
@@ -203,7 +204,7 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 
 		return false;
 	}
-	else if (isMove)
+	else if (isMove && !_ignoreInputEvent)
 	{
 		Rect bounds = _localEntity->GetBounds();
 

@@ -187,11 +187,10 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
                 return error;
             }
 
-            LOG_INFO << "Received RPC ";
+            LOG_DEBUG << "Received RPC ";
             switch ((TCPPacketType)packet.Type)
             {
             case TCPPacketType::RPC_SetMousePosition:
-                LOG_ERROR << "RPC_SetMousePosition" << std::endl;
                 {
                     NERPCSetMouseData data;
                     error = server->Recv((char*)&data, sizeof(data), &received);
@@ -213,7 +212,7 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
                         return error;
                     }
 
-                    LOG_INFO << "NetworkEntityRPCSetMouseData {" << data.x << "," << data.y << "}" << std::endl;
+                    LOG_DEBUG << "NetworkEntityRPCSetMouseData {" << data.x << "," << data.y << "}" << std::endl;
                     RPC_SetMousePosition(data.x, data.y);
                 }
                 break;
@@ -226,10 +225,10 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
                 RPC_UnhideMouse();
                 break;
             case TCPPacketType::Heartbeat:
-                LOG_INFO << "Received Heartbeat from server !" << std::endl;
+                LOG_DEBUG << "Received Heartbeat from server !" << std::endl;
                 break;
             case TCPPacketType::OSEventHeader:
-                LOG_INFO << "Received OS Event Header from server !" << std::endl;
+                LOG_DEBUG << "Received OS Event Header from server !" << std::endl;
                 {
                     OSEvent osEvent;
 
@@ -262,7 +261,7 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
                 break;
             case TCPPacketType::OSEventCLipboard:
             {
-                LOG_INFO << "Received Clipbaord Packet" << std::endl;
+                LOG_DEBUG << "Received Clipbaord Packet" << std::endl;
                 OSClipboardDataPacketHeader cHeader;
                 rsize_t received = 0;
                 error = server->Recv((char*)&cHeader, sizeof(OSClipboardDataPacketHeader), &received);
@@ -332,6 +331,7 @@ void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
     if (HandleServerTCPComm(server) != SocketError::SOCKET_E_SUCCESS)
     {
         delete server;
+        server = 0;
         if (_delegate)
             _delegate->LostServer();
         if (_shouldBeRunningCommThread)
@@ -346,7 +346,8 @@ void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
     }
     else
     {
-        delete server;
+        if(server) delete server;
+        server = 0;
     }
 }
 
@@ -395,6 +396,7 @@ void CCNetworkEntity::SendOSEvent(const OSEvent& event)
 
     if (event.eventType == OS_EVENT_MOUSE && event.mouseEvent == MOUSE_EVENT_MOVE)
     {
+        LOG_INFO << event << std::endl;
         OSInputEventPacket inputPacket(event);
         SocketError error = _udpCommSocket->Send(&inputPacket, sizeof(inputPacket));
         if (error != SocketError::SOCKET_E_SUCCESS)
@@ -594,7 +596,7 @@ void CCNetworkEntity::RPC_SetMousePosition(float xPercent, float yPercent)
         // warp mouse
         int x = _totalBounds.topLeft.x + (int)((_totalBounds.bottomRight.x - _totalBounds.topLeft.x) * xPercent);
         int y = _totalBounds.topLeft.y + (int)((_totalBounds.bottomRight.y - _totalBounds.topLeft.y) * yPercent);
-        LOG_ERROR << "RPC_SetMousePosition {" << x << "," << y << "}" << std::endl;
+        LOG_DEBUG << "RPC_SetMousePosition {" << x << "," << y << "}" << std::endl;
 
         // spawn thread for to send input on because we don't want a dead lock with messages
         // this is a windows issue and could be solved in OSInterface probably but for now
