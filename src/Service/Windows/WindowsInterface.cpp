@@ -11,9 +11,12 @@
 #include <windows.h>
 #include <functional>
 #include <vector>
+#include "..\OSInterface\NativeInterface.h"
 
 #define DEFAULT_ADAPTOR_ADDRESS_SIZE 15000;
 #define MAX_ADAPTOR_FETCH_TRIES 3
+
+#define USE_RELATIVE_MOUSE_INPUT 1
 
 #define WINDOWS_NORM_X_MAX 65535
 #define WINDOWS_NORM_Y_MAX 65535
@@ -434,6 +437,18 @@ int GetIPAddressList(std::vector<IPAdressInfo>& outAddresses, const IPAdressInfo
     return 0;
 }
 
+int GetPointIsAtEdgeOfGlobalScreen(int x, int y, int xLimit, int yLimit, bool& result)
+{
+    int tlX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    int tlY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    int brX = tlX + GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    int brY = tlY + GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+    result = x < (tlX + xLimit) || x > (brX - xLimit) || y < (tlY + yLimit) || y > (brY - yLimit);
+
+    return 0;
+}
+
 int GetClipBoard(ClipboardData& outData)
 {
     if (windowHandle == INVALID_HANDLE_VALUE)
@@ -459,11 +474,17 @@ int GetClipBoard(ClipboardData& outData)
     }
 
     LPVOID data = GlobalLock(cHandle);
-
-    outData.stringData = (char*)data;
-    outData.type = ClipboardDataType::Text;
-
-    GlobalUnlock(cHandle);
+    if (data)
+    {
+        outData.stringData = (char*)data;
+        outData.type = ClipboardDataType::Text;
+        GlobalUnlock(cHandle);
+    }
+    else
+    {
+        CloseClipboard();
+        return GetLastError();
+    }
 
     CloseClipboard();
 
@@ -498,11 +519,19 @@ int SetClipBoard(const ClipboardData& data)
     }
 
     LPVOID gdata = GlobalLock(cData);
-    memcpy(gdata, data.stringData.c_str(), cSize);
+    if (gdata)
+    {
+        memcpy(gdata, data.stringData.c_str(), cSize);
 
-    ((char*)gdata)[cSize] = 0;
+        ((char*)gdata)[cSize] = 0;
+        GlobalUnlock(cData);
+    }
+    else
+    {
+        CloseClipboard();
+        return GetLastError();
+    }
 
-    GlobalUnlock(cData);
 
     if (SetClipboardData(CF_TEXT, cData) == NULL)
     {
@@ -668,7 +697,6 @@ int SetMousePosition(int x, int y)
 {
     INPUT newInput;
     memset(&newInput, 0, sizeof(INPUT));
-    int eventType = 0;
 
     newInput.type = INPUT_MOUSE;
 
@@ -679,6 +707,26 @@ int SetMousePosition(int x, int y)
     newInput.mi.dy = (LONG)(((float)y / (float)height) * 65535);
 
     newInput.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+
+    {
+        std::lock_guard<std::mutex> lock(inputMutex);
+        if (SendInput(1, &newInput, sizeof(INPUT)) != 1)
+            return GetLastError();
+    }
+    return 0;
+}
+
+int SetMousePositionFromDelta(int deltaX, int deltaY)
+{
+    INPUT newInput;
+    memset(&newInput, 0, sizeof(INPUT));
+
+    newInput.type = INPUT_MOUSE;
+
+    newInput.mi.dx = deltaX;
+    newInput.mi.dy = deltaY;
+
+    newInput.mi.dwFlags = MOUSEEVENTF_MOVE;
 
     {
         std::lock_guard<std::mutex> lock(inputMutex);
@@ -722,7 +770,11 @@ int SendMouseEvent(const OSEvent mouseEvent)
 {
     if (mouseEvent.mouseEvent == MOUSE_EVENT_MOVE)
     {
+#if USE_RELATIVE_MOUSE_INPUT
+        return SetMousePositionFromDelta(mouseEvent.deltaX, mouseEvent.deltaY);
+#else
         return SetMousePosition(mouseEvent.x, mouseEvent.y);
+#endif
     }
 
     INPUT newInput;

@@ -242,6 +242,15 @@ OSInterfaceError OSInterface::GetUUID(std::string& UUID, size_t length)
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
+OSInterfaceError OSInterface::GetPointIsAtEdgeOfGlobalScreen(int x, int y, int xLimit, int yLimit, bool& result)
+{
+    int ret = ::GetPointIsAtEdgeOfGlobalScreen(x,y,xLimit,yLimit,result);
+    if (ret != 0)
+        return OSErrorToOSInterfaceError(ret);
+
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
 void OSInterface::OSMainLoop()
 {
     ::OSMainLoop(_shouldRunMainloop);
