@@ -1120,6 +1120,49 @@ int ConvertEventCoordsToNative(const OSEvent inEvent, OSEvent& outEvent)
     return 0;
 }
 
+int GetPointIsAtEdgeOfGlobalScreen(int x, int y, int xLimit, int yLimit, bool& result)
+{
+    int tlX = 0;
+    int tlY = 0;
+    int brX = 0;
+    int brY = 0;
+    
+    bool first = true;
+    
+    NSArray<NSScreen*>* screens = [NSScreen screens];
+    
+    if(screens == nil || screens.count < 1)
+        return -1;
+    
+    for (NSScreen* screen in screens) {
+        int stlX = screen.frame.origin.x;
+        int stlY = screen.frame.origin.y;
+        int sbrX = stlX + screen.frame.size.width;
+        int sbrY = stlY + screen.frame.size.height;
+        
+        if(first)
+        {
+            first = false;
+            
+            tlX = stlX;
+            tlY = stlY;
+            brX = sbrX;
+            brY = sbrY;
+        }
+        else
+        {
+            tlX = MIN(tlX, stlX);
+            tlY = MIN(tlY, stlY);
+            brX = MAX(brX, sbrX);
+            brY = MAX(brY, sbrY);
+        }
+    }
+    
+    result = x < (tlX + xLimit) || x > (brX - xLimit) || y < (tlY + yLimit) || y > (brY - yLimit);
+
+    return 0;
+}
+
 OSInterfaceError OSErrorToOSInterfaceError(int OSError)
 {
     switch (OSError) {
