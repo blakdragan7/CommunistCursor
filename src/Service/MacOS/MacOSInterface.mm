@@ -1,5 +1,6 @@
 #include "../OSInterface/NativeInterface.h"
 #include "../OSInterface/KeyCodes.h"
+#include "../CC/CCLogger.h"
 
 #include <ApplicationServices/ApplicationServices.h>
 
@@ -34,6 +35,8 @@
 #define ERROR_INVALID_PARAM -2
 #define ERROR_COMM -3
 #define ERROR_UNKOWN -4
+
+#define USE_RELATIVE_MOUSE_INPUT 1
 
 int ConverKeyCodeToVirtualKey(KeyCode keyCode)
 {
@@ -695,8 +698,10 @@ int SetMousePosition(int x,int y)
 
 int GetMousePosition(int& xPos, int& yPos)
 {
-    NSPoint point;
-    point = [NSEvent mouseLocation];
+    CGPoint point;
+    CGEventRef event = CGEventCreate(NULL);
+    point = CGEventGetLocation(event);
+    CFRelease(event);
     xPos = point.x;
     yPos = point.y;
     
@@ -953,17 +958,27 @@ int SendMouseEvent(const OSEvent mouseEvent)
     
     static int lastEventPosX = 0;
     static int lastEventPosY = 0;
+#if USE_RELATIVE_MOUSE_INPUT
+    int eventPosX;
+    int eventPosY;
     
+    GetMousePosition(eventPosX, eventPosY);
+#else
     int eventPosX = lastEventPosX;
     int eventPosY = lastEventPosY;
-    
+#endif
     bool isScrollEvent = false;
     
     switch (mouseEvent.mouseEvent)
     {
     case MOUSE_EVENT_MOVE:
+#if USE_RELATIVE_MOUSE_INPUT
+        eventPosX += mouseEvent.deltaX;
+        eventPosY += mouseEvent.deltaY;
+#else
         eventPosX = mouseEvent.x;
         eventPosY = mouseEvent.y;
+#endif
         if(leftMouseDown)
         {
             mouseButton = kCGMouseButtonLeft;
@@ -985,26 +1000,26 @@ int SendMouseEvent(const OSEvent mouseEvent)
         }
         break;
     case MOUSE_EVENT_DOWN:
-            switch (mouseEvent.mouseButton)
-            {
-                case MOUSE_BUTTON_LEFT:
-                    eventType = kCGEventLeftMouseDown;
-                    mouseButton = kCGMouseButtonLeft;
-                    leftMouseDown = true;
-                    break;
-                case MOUSE_BUTTON_RIGHT:
-                    eventType = kCGEventRightMouseDown;
-                    mouseButton = kCGMouseButtonRight;
-                    rightMouseDown = true;
-                    break;
-                case MOUSE_BUTTON_MIDDLE:
-                    eventType = kCGEventOtherMouseDown;
-                    mouseButton = kCGMouseButtonCenter;
-                    centerMouseDown = true;
-                    break;
-                default:
-                    break;
-            }
+        switch (mouseEvent.mouseButton)
+        {
+            case MOUSE_BUTTON_LEFT:
+                eventType = kCGEventLeftMouseDown;
+                mouseButton = kCGMouseButtonLeft;
+                leftMouseDown = true;
+                break;
+            case MOUSE_BUTTON_RIGHT:
+                eventType = kCGEventRightMouseDown;
+                mouseButton = kCGMouseButtonRight;
+                rightMouseDown = true;
+                break;
+            case MOUSE_BUTTON_MIDDLE:
+                eventType = kCGEventOtherMouseDown;
+                mouseButton = kCGMouseButtonCenter;
+                centerMouseDown = true;
+                break;
+            default:
+                break;
+        }
         
         break;
     case MOUSE_EVENT_UP:
@@ -1036,6 +1051,8 @@ int SendMouseEvent(const OSEvent mouseEvent)
     default:
         return ERROR_INVALID_PARAM;
     }
+    
+    LOG_INFO << "Mouse X " << eventPosX << " Y " << eventPosY << std::endl;
     
     if(isScrollEvent)
         event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo*32);
