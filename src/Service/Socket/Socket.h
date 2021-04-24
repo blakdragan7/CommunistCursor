@@ -128,7 +128,7 @@ public:
     // Get if the socket has data in it's read buffer
     // Generally used with Non-Blocking Sockets
     // this returns in at most duration time and will return 
-    // SocketError::SOCKET_E_WOULD_BLOCK if it could not complete 
+    // SocketError::SOCKET_E_TIMEOUT if it times out first 
     // the operation by duration time(the socket was in the middle of something)
     SocketError HasReadInput(bool& outHasReadInput, WaitDuration  duration);
     // Get if the socket has data in it's write buffer
@@ -138,7 +138,7 @@ public:
     // Get if the socket has data in it's write buffer
     // Generally used with Non-Blocking Sockets
     // this returns in at most duration time and will return 
-    // SocketError::SOCKET_E_WOULD_BLOCK if it could not complete 
+    // SocketError::SOCKET_E_TIMEOUT if it could not complete 
     // the operation by duration time(the socket was in the middle of something)
     SocketError HasWriteOutput(bool& outHasWriteOutput, WaitDuration duration);
     // wait for server to close socket, basically used client side 
@@ -153,6 +153,8 @@ public:
 
     // sets the stats of this socket to be able to multicast if true or disables them if false
     SocketError SetIsBroadcastable(bool);
+    // sets this socket to either enable or disable blocking. If isBlocking is false, functions like Recv will return instantly if
+    // nothing is available to read
     SocketError SetIsBlocking(bool isBlocking);
 
     // Getters

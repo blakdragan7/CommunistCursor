@@ -9,12 +9,24 @@
 
 #include "Socket.h"
 
+#ifndef WSAETIMEDOUT
+#define WSAETIMEDOUT ETIMEDOUT
+#endif
+
 #ifndef WSAEADDRINUSE
 #define WSAEADDRINUSE EADDRINUSE
 #endif
 
 #ifndef WSAEWOULDBLOCK
 #define WSAEWOULDBLOCK EWOULDBLOCK
+#endif
+
+#ifndef WSAEALREADY
+#define WSAEALREADY EALREADY
+#endif
+
+#ifndef WSAEISCONN
+#define WSAEISCONN EISCONN
 #endif
 
 #ifndef WSAENETDOWN
@@ -54,18 +66,24 @@ const std::string SockErrorToString(SocketError err)
     {
         case SocketError::SOCKET_E_SUCCESS:
             return "Socket Error Success";
+        case SocketError::SOCKET_E_TIMEOUT:
+            return "Socket Timed Out";
         case SocketError::SOCKET_E_BIND:
             return "Error Binding To Port";
         case SocketError::SOCKET_E_CREATION:
             return "Error Creating Socket";
         case SocketError::SOCKET_E_WOULD_BLOCK:
             return "Error Socket Would Block";
+        case SocketError::SOCKET_E_OP_IN_PROGRESS:
+            return "Error Operation Already In Progress";
         case SocketError::SOCKET_E_ADDR_IN_USE:
             return "Error Address Already In Use";
         case SocketError::SOCKET_E_CONN_REFUSED:
             return "Error Connection Refused";
         case SocketError::SOCKET_E_BROKEN_PIPE:
             return "Error Socket Has Broken Pipe";
+        case SocketError::SOCKET_E_ALREADY_CONN:
+            return "Error Socket Already Connected";
         case SocketError::SOCKET_E_NOT_CONNECTED:
             return "Error Socket Not Connected";
         case SocketError::SOCKET_E_INITIALIZATION:
@@ -111,6 +129,8 @@ SocketError OSErrorToSocketError(NativeError os_err)
     {
     case WSAEADDRINUSE:
         return SocketError::SOCKET_E_ADDR_IN_USE;
+    case WSAETIMEDOUT:
+        return SocketError::SOCKET_E_TIMEOUT;
     case WSAENETDOWN:
     case WSAENETUNREACH:
         return SocketError::SOCKET_E_NETWORK;
@@ -119,6 +139,10 @@ SocketError OSErrorToSocketError(NativeError os_err)
         return SocketError::SOCKET_E_BROKEN_PIPE;
     case WSAEWOULDBLOCK:
         return SocketError::SOCKET_E_WOULD_BLOCK;
+    case WSAEALREADY:
+        return SocketError::SOCKET_E_OP_IN_PROGRESS;
+    case WSAEISCONN:
+        return SocketError::SOCKET_E_ALREADY_CONN;
     case WSAECONNREFUSED:
         return SocketError::SOCKET_E_CONN_REFUSED;
     case WSAENOTCONN:

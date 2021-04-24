@@ -264,94 +264,99 @@ SocketError Socket::Connect()
         addrInfo = addrInfo->ai_next;
     }
 
-    if(iResult == SOCKET_ERROR)
+    if (iResult == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
-        return SOCK_ERR(lastOSErr);
-    }
+        SocketError err = SOCK_ERR(lastOSErr);
+        if (err == SocketError::SOCKET_E_WOULD_BLOCK || err == SocketError::SOCKET_E_OP_IN_PROGRESS)
+        {
+            fd_set read, write, uer;
+            TIMEVAL timeout;
 
-    _isConnected = true;
+            FD_ZERO(&read);
+            FD_ZERO(&write);
+            FD_ZERO(&uer);
 
-    return SocketError::SOCKET_E_SUCCESS;
-}
+            FD_SET((SOCKET)_sfd, &read);
+            FD_SET((SOCKET)_sfd, &write);
+            FD_SET((SOCKET)_sfd, &uer);
 
-SocketError Socket::Connect(int _port)
-{
-    if(_port != -1)
-        _port = _port;
+            timeout.tv_sec = 2;
+            timeout.tv_usec = 0;
 
-    SocketError e = MakeInternalSocketInfo();
-    if(e != SocketError::SOCKET_E_SUCCESS)
-    {
-        return e;
-    }
+            int oer = select(0, &read, &write, &uer, &timeout);
+            if (oer == SOCKET_ERROR)
+            {
+                lastOSErr = GetLastError();
+                return SOCK_ERR(lastOSErr);
+            }
+            else if (oer == 0)
+            {
+                return SocketError::SOCKET_E_TIMEOUT;
+            }
+            else
+            {
+                if (FD_ISSET((SOCKET)_sfd, &uer))
+                {
+                    int len = sizeof(lastOSErr);
+                    if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+                    {
+                        lastOSErr = GetLastError();
+                    }
+                    return SOCK_ERR(lastOSErr);
+                }
 
-    struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
-    int iResult = 0;
-    // attempt to connect with all results
-
-    while(addrInfo)
-    {
-        iResult = connect((SOCKET)_sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
-
-        if(iResult != SOCKET_ERROR)
-            break;
-
-        addrInfo = addrInfo->ai_next;
-    }
-
-    if(iResult == SOCKET_ERROR)
-    {
-        lastOSErr = OSGetLastError();
-        return SOCK_ERR(lastOSErr);
-    }
-
-    _isConnected = true;
-
-    return SocketError::SOCKET_E_SUCCESS;
-}
-
-SocketError Socket::Connect(const std::string& address, int _port)
-{
-    if(_address.size() == 0)
-        return SocketError::SOCKET_E_INVALID_PARAM;
-
-    if(_port != -1)
-        _port = _port;
-
-    _address = address;
-
-    SocketError e = MakeInternalSocketInfo();
-    if(e != SocketError::SOCKET_E_SUCCESS)
-    {
-        return e;
-    }
-
-    struct addrinfo* addrInfo = static_cast<addrinfo*>(_internalSockInfo);
-    int iResult = 0;
-    // attempt to connect with all results
-
-    while(addrInfo)
-    {
-        iResult = connect((SOCKET)_sfd, addrInfo->ai_addr, (int)addrInfo->ai_addrlen);
-
-        if(iResult != SOCKET_ERROR)
-            break;
-
-        addrInfo = addrInfo->ai_next;
+                if (FD_ISSET((SOCKET)_sfd, &read) && FD_ISSET((SOCKET)_sfd, &write))
+                {
+                    addrInfo = (ADDRINFO*)_internalSockInfo;
+                }
+            }
+        }
+        else return err;
     }
 
     _internalSockInfo = addrInfo;
-
-    if(iResult == SOCKET_ERROR)
-    {
-        lastOSErr = OSGetLastError();
-        return SOCK_ERR(lastOSErr);
-    }
-
     _isConnected = true;
 
     return SocketError::SOCKET_E_SUCCESS;
+}
+
+SocketError Socket::Connect(int port)
+{
+    if (port != -1 && _port != port)
+    {
+        _port = port;
+
+        SocketError e = MakeInternalSocketInfo();
+        if (e != SocketError::SOCKET_E_SUCCESS)
+        {
+            return e;
+        }
+    }
+
+    return Connect();
+}
+
+SocketError Socket::Connect(const std::string& address, int port)
+{
+    if(address.size() == 0)
+        return SocketError::SOCKET_E_INVALID_PARAM;
+
+    if (_address != address || (port != -1 && _port != port))
+    {
+        _address = address;
+
+        if (port != -1)
+            _port = port;
+
+        SocketError e = MakeInternalSocketInfo();
+        if (e != SocketError::SOCKET_E_SUCCESS)
+        {
+            return e;
+        }
+    }
+
+    return Connect();
 }
 
 SocketError Socket::SendTo(const void* bytes, size_t length)
@@ -527,8 +532,12 @@ SocketError Socket::WaitForServer()
     
         if(received == SOCKET_ERROR)
         {
-            lastOSErr = OSGetLastError();
-            return SOCK_ERR(lastOSErr);
+            int OSErr = OSGetLastError();
+            SocketError er = SOCK_ERR(OSErr);
+            if (er == SocketError::SOCKET_E_WOULD_BLOCK || er == SocketError::SOCKET_E_OP_IN_PROGRESS)
+                continue;
+            lastOSErr = OSErr;
+            return er;
         }
     } while (received > 0);
     
@@ -760,7 +769,19 @@ SocketError Socket::Accept(NativeSocketHandle* acceptedSocket)
     if(*acceptedSocket == (NativeSocketHandle)INVALID_SOCKET)
     {
         lastOSErr = OSGetLastError();
-        return SOCK_ERR(lastOSErr);
+        SocketError e = SOCK_ERR(lastOSErr);
+        if (e == SocketError::SOCKET_E_WOULD_BLOCK || e == SocketError::SOCKET_E_OP_IN_PROGRESS)
+        {
+            bool hasInput = false;
+            e = HasReadInput(hasInput, std::chrono::seconds(1));
+            if(e != SocketError::SOCKET_E_SUCCESS)
+            {
+                return e;
+            }
+
+            *acceptedSocket = (NativeSocketHandle)accept((SOCKET)_sfd, NULL, NULL);
+        }
+        else return e;
     }
 
     return SocketError::SOCKET_E_SUCCESS;
@@ -783,12 +804,6 @@ SocketError Socket::Accept(NativeSocketHandle* acceptedSocket, size_t timeout)
 SocketError Socket::ConvertOSError(NativeError error)
 {
     SocketError ret = OSErrorToSocketError(error);
-    // treat would block as a success
-    // _lastOSError will still represent the true error
-    if (ret == SocketError::SOCKET_E_WOULD_BLOCK && !_isBlocking)
-    {
-        ret = SocketError::SOCKET_E_SUCCESS;
-    }
 
     return ret;
 }
@@ -844,25 +859,38 @@ SocketError Socket::Accept(Socket** acceptedSocket, size_t timeout)
 
 SocketError Socket::HasReadInput(bool& outHasReadInput)
 {
-    fd_set set = { 0 };
-#ifdef _WIN32
-    set.fd_count = 1;
-    set.fd_array[0] = (SOCKET)_sfd;
-#else
+    fd_set set, err;
+
     FD_ZERO(&set);
-    FD_SET(_sfd, &set);
-#endif
+    FD_ZERO(&err);
+    FD_SET((SOCKET)_sfd, &set);
+    FD_SET((SOCKET)_sfd, &set);
     
-    int ret = select(NULL, &set, NULL, NULL, NULL);
+    int ret = select(NULL, &set, NULL, &err, NULL);
     if (ret == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
     }
     if (ret == 1)
+    {
+        if (FD_ISSET((SOCKET)_sfd, &err))
+        {
+            int len = sizeof(lastOSErr);
+            if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+            {
+                lastOSErr = GetLastError();
+            }
+            return SOCK_ERR(lastOSErr);
+        }
+
+        outHasReadInput = FD_ISSET((SOCKET)_sfd, &set);
         return SocketError::SOCKET_E_SUCCESS;
+    }
     if (ret == 0)
-        return SocketError::SOCKET_E_WOULD_BLOCK;
+    {
+        return SocketError::SOCKET_E_TIMEOUT;
+    }
 
     return SocketError::SOCKET_E_UNKOWN;
 }
@@ -873,46 +901,73 @@ SocketError Socket::HasReadInput(bool& outHasReadInput, WaitDuration  duration)
     auto miliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
     waitTime.tv_sec = (long)(miliseconds.count() / 1000);
     waitTime.tv_usec = (long)((miliseconds.count() % 1000) * 1000);
-    fd_set set = { 0 };
-#ifdef _WIN32
-    set.fd_count = 1;
-    set.fd_array[0] = (SOCKET)_sfd;
-#else
+
+    fd_set set, err;
+
     FD_ZERO(&set);
-    FD_SET(_sfd, &set);
-#endif
-    int ret = select(NULL, &set, NULL, NULL, &waitTime);
+    FD_ZERO(&err);
+    FD_SET((SOCKET)_sfd, &set);
+    FD_SET((SOCKET)_sfd, &set);
+
+    int ret = select(NULL, &set, NULL, &err, &waitTime);
     if (ret == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
     }
     if (ret == 1)
+    {
+        if (FD_ISSET((SOCKET)_sfd, &err))
+        {
+            int len = sizeof(lastOSErr);
+            if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+            {
+                lastOSErr = GetLastError();
+            }
+            return SOCK_ERR(lastOSErr);
+        }
+
+        outHasReadInput = FD_ISSET((SOCKET)_sfd, &set);
         return SocketError::SOCKET_E_SUCCESS;
+    }
     if (ret == 0)
-        return SocketError::SOCKET_E_WOULD_BLOCK;
+    {
+        return SocketError::SOCKET_E_TIMEOUT;
+    }
 
     return SocketError::SOCKET_E_UNKOWN;
 }
 
 SocketError Socket::HasWriteOutput(bool& outHasWriteOutput)
 {
-    fd_set set = { 0 };
-#ifdef _WIN32
-    set.fd_count = 1;
-    set.fd_array[0] = (SOCKET)_sfd;
-#else
+    fd_set set, err;
+
     FD_ZERO(&set);
-    FD_SET(_sfd, &set);
-#endif
-    int ret = select(NULL, NULL, &set, NULL, NULL);
+    FD_ZERO(&err);
+    FD_SET((SOCKET)_sfd, &set);
+    FD_SET((SOCKET)_sfd, &set);
+
+    int ret = select(NULL, NULL, &set, &err, NULL);
     if (ret == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
     }
-    if(ret == 1)
+    if (ret == 1)
+    {
+        if (FD_ISSET((SOCKET)_sfd, &err))
+        {
+            int len = sizeof(lastOSErr);
+            if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+            {
+                lastOSErr = GetLastError();
+            }
+            return SOCK_ERR(lastOSErr);
+        }
+
+        outHasWriteOutput = FD_ISSET((SOCKET)_sfd, &set);
         return SocketError::SOCKET_E_SUCCESS;
+    }
     if (ret == 0)
         return SocketError::SOCKET_E_WOULD_BLOCK;
 
@@ -925,24 +980,27 @@ SocketError Socket::HasWriteOutput(bool& outHasWriteOutput, WaitDuration  durati
     auto miliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
     waitTime.tv_sec = (long)(miliseconds.count() / 1000);
     waitTime.tv_usec = (long)((miliseconds.count() % 1000) * 1000);
-    fd_set set = { 0 };
-#ifdef _WIN32
-    set.fd_count = 1;
-    set.fd_array[0] = (SOCKET)_sfd;
-#else
+
+    fd_set set, err;
+
     FD_ZERO(&set);
-    FD_SET(_sfd, &set);
-#endif
-    int ret = select(NULL, NULL, &set, NULL, &waitTime);
+    FD_ZERO(&err);
+    FD_SET((SOCKET)_sfd, &set);
+    FD_SET((SOCKET)_sfd, &set);
+
+    int ret = select(NULL, NULL, &set, &err, &waitTime);
     if (ret == SOCKET_ERROR)
     {
         lastOSErr = OSGetLastError();
         return SOCK_ERR(lastOSErr);
     }
     if (ret == 1)
+    {
+        outHasWriteOutput = FD_ISSET((SOCKET)_sfd, &set);
         return SocketError::SOCKET_E_SUCCESS;
+    }
     if (ret == 0)
-        return SocketError::SOCKET_E_WOULD_BLOCK;
+        return SocketError::SOCKET_E_TIMEOUT;
 
     return SocketError::SOCKET_E_UNKOWN;
 }
