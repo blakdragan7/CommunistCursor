@@ -105,6 +105,15 @@ struct NERPCSetMouseData
 	NERPCSetMouseData(float x, float y) : MagicNumber(P_MAGIC_NUMBER), x(x), y(y) {}
 };
 
+struct NETCPCursorInEdge
+{
+	float x;
+	float y;
+	unsigned int MagicNumber;
+	NETCPCursorInEdge() : MagicNumber(P_MAGIC_NUMBER), x(0), y(0) {}
+	NETCPCursorInEdge(float x, float y) : MagicNumber(P_MAGIC_NUMBER), x(x), y(y) {}
+};
+
 struct NETCPPacketAwk
 {
 	unsigned int MagicNumber;

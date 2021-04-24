@@ -98,10 +98,15 @@ int ShutdownOSConnection()
     if (windowHandle == (HWND)INVALID_HANDLE_VALUE)
         return 0;
 
-    if (UnregisterClass(WINDOW_CLASS_NAME, GetModuleHandle(NULL)) == FALSE)
+    if (CloseWindow(windowHandle) == false)
         return GetLastError();
 
-    if (CloseWindow(windowHandle) == false)
+    if (DestroyWindow(windowHandle) == false)
+        return GetLastError();
+
+    windowHandle = (HWND)INVALID_HANDLE_VALUE;
+
+    if (UnregisterClass(WINDOW_CLASS_NAME, GetModuleHandle(NULL)) == FALSE)
         return GetLastError();
 
     return 0;
@@ -743,6 +748,25 @@ int GetMousePosition(int& xPos, int& yPos)
     {
         xPos = p.x;
         yPos = p.y;
+
+        return 0;
+    }
+    else
+        return GetLastError();
+}
+
+int GetNormalMousePosition(float xPos, float yPos)
+{
+    POINT p;
+    if (GetCursorPos(&p))
+    {
+        int tlX = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        int tlY = GetSystemMetrics(SM_YVIRTUALSCREEN);
+        int width  = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+        int height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+
+        xPos = (float)(p.x - tlX) / (float)width;
+        yPos = (float)(p.y - tlY) / (float)height;
 
         return 0;
     }

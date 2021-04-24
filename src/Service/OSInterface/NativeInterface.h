@@ -115,6 +115,13 @@ extern int SetMousePosition(int x,int y);
 */
 extern int GetMousePosition(int& xPos, int& yPos);
 /*
+    Returns an OS error or 0 on success
+
+    Gets the mouse position normalized to the virtual screen and stores it in {xPos} and {yPos}
+*/
+extern int GetNormalMousePosition(float xPos, float yPos);
+
+/*
     Checks if the point {x,y} is  within +/- {xLimit} of the global screen coords or
     within +/- {yLimit} of the global screen coords. For example, if {xLimit} is 10, then
     if {x} is within 10 of either the far left or far right of the screen it will set reult to true

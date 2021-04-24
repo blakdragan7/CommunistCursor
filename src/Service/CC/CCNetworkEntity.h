@@ -32,13 +32,14 @@ enum class TCPPacketType : int
     RPC_SetMousePosition    = 0,
     RPC_HideMouse           = 1,
     RPC_UnhideMouse         = 2,
+    RPC_MouseInEdge         = 3,
 
     // Monitoring Types
-    Heartbeat               = 3,
+    Heartbeat               = 4,
 
     // Events
-    OSEventHeader           = 4,
-    OSEventCLipboard        = 5
+    OSEventHeader           = 5,
+    OSEventCLipboard        = 6
 };
 
 enum class JumpDirection : int
@@ -92,6 +93,7 @@ private:
     SocketError WaitForAwk(Socket* socket);
     SocketError HandleServerTCPComm(Socket* server);
     void HandleServerTCPCommJob(Socket* server);
+    void CheckEventNeedsJumpZoneNotificationSent(const OSEvent& osEvent);
 
 public:
     CCNetworkEntity(std::string entityID, std::string entityName, bool isServer = false);

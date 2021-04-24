@@ -186,6 +186,15 @@ OSInterfaceError OSInterface::GetMousePosition(int& xPos, int& yPos)
     return OSInterfaceError::OS_E_SUCCESS;
 }
 
+OSInterfaceError OSInterface::GetNormalMousePosition(float& xPos, float& yPos)
+{
+    int ret = ::GetNormalMousePosition(xPos, yPos);
+    if (ret != 0)
+        return OSErrorToOSInterfaceError(ret);
+
+    return OSInterfaceError::OS_E_SUCCESS;
+}
+
 OSInterfaceError OSInterface::GetProcessExitCode(int processID, unsigned long* exitCode)
 {
     int ret = ::GetProcessExitCode(processID, exitCode);
@@ -249,6 +258,18 @@ OSInterfaceError OSInterface::GetPointIsAtEdgeOfGlobalScreen(int x, int y, int x
         return OSErrorToOSInterfaceError(ret);
 
     return OSInterfaceError::OS_E_SUCCESS;
+}
+
+OSInterfaceError OSInterface::CursorIsWithinEdgeOfGlobalScreen(int xLimit, int yLimit, bool& result)
+{
+    int mouseX, mouseY;
+    OSInterfaceError error = this->GetMousePosition(mouseX, mouseY);
+    if (error != OSInterfaceError::OS_E_SUCCESS)
+    {
+        return error;
+    }
+
+    return GetPointIsAtEdgeOfGlobalScreen(mouseX, mouseY, xLimit, yLimit, result);
 }
 
 void OSInterface::OSMainLoop()

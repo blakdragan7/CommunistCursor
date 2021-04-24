@@ -351,6 +351,37 @@ void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
     }
 }
 
+void CCNetworkEntity::CheckEventNeedsJumpZoneNotificationSent(const OSEvent& osEvent)
+{
+    if (osEvent.eventType == OSEventType::OS_EVENT_MOUSE)
+    {
+        if (osEvent.mouseEvent == MouseEventType::MOUSE_EVENT_MOVE)
+        {
+            bool isWithinEdge = false;
+
+            OSInterfaceError error = OSInterface::SharedInterface().CursorIsWithinEdgeOfGlobalScreen(10, 10, isWithinEdge);
+            if (error != OSInterfaceError::OS_E_SUCCESS)
+            {
+                LOG_ERROR << "Erorr checking CursorIsWithinEdgeOfGlobalScreen " << OSInterfaceErrorToString(error) << std::endl;
+                return;
+            }
+
+            if (isWithinEdge)
+            {
+                float x, y;
+                OSInterfaceError error = OSInterface::SharedInterface().GetNormalMousePosition(x,y);
+
+                NETCPCursorInEdge packet(x,y);
+                SocketError err = SendRPCOfType(TCPPacketType::RPC_MouseInEdge, &packet, sizeof(packet));
+                if (err != SocketError::SOCKET_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error sending mouse enterd jump zone packet " << SOCK_ERR_STR(_tcpCommSocket, err) << std::endl;
+                }
+            }
+        }
+    }
+}
+
 CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _isLocalEntity(true), \
 _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0)
 {
@@ -769,6 +800,7 @@ void CCNetworkEntity::UDPCommThread()
         DISPATCH_ASYNC_SERIAL(_udpCommQueue, std::bind(&CCNetworkEntity::UDPCommThread, this));
 
     OSInterface::SharedInterface().SendOSEvent(event);
+    CheckEventNeedsJumpZoneNotificationSent(event);
 }
 
 void CCNetworkEntity::HeartbeatThread()
@@ -789,7 +821,6 @@ void CCNetworkEntity::HeartbeatThread()
             }
         }
     }
-
 
     auto nextHeartbeat = std::chrono::system_clock::now() + std::chrono::seconds(5);
     {

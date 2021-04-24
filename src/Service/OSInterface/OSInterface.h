@@ -95,6 +95,12 @@ public:
      */
     OSInterfaceError GetMousePosition(int& xPos, int& yPos);
     /*
+     * Gets the current mouse cursor position normalized to the virtual desktop size
+     * 
+     * Returns an OSInterfaceError on failure or OS_E_SUCCESS if succesful
+     */
+    OSInterfaceError GetNormalMousePosition(float& xPos, float& yPos);
+    /*
      *  Gets the exit code for process with id {processID} and stores it in {*exitCode}
      *
      *  Returns OSInterfaceError on failure or OS_E_SUCESS if succeful
@@ -136,19 +142,29 @@ public:
     OSInterfaceError GetUUID(std::string& UUID, size_t length);
 
     /*
-     *  Checks if the point {x,y} is  within +/- {xLimit} of the global screen coords or
-     *  within +/- {yLimit} of the global screen coords. For example, if {xLimit} is 10, then
+     *  Checks if the point {x,y} is  within +/- {xLimit} of the edge of the global screen coords or
+     *  within +/- {yLimit} of the edge of the global screen coords. For example, if {xLimit} is 10, then
      *  if {x} is within 10 of either the far left or far right of the screen it will set reult to true
      *
      *  {x} x location in global screen coords
      *  {y} y location in global screen coords
      * 
      *  {xLimit} x limit in global screen coords to be considered the "Edge" of the screen.
-     *  {yLimit} x limit in global screen coords to be considered the "Edge" of the screen.
+     *  {yLimit} y limit in global screen coords to be considered the "Edge" of the screen.
      * 
-     *  {result} set to true if either {x} or {y} is within the {xLimit} or {yLimit} of the screen.
+     *  {result} set to true if either {x} or {y} is within the {xLimit} or {yLimit} of the screens edge.
      */
     OSInterfaceError GetPointIsAtEdgeOfGlobalScreen(int x, int y, int xLimit, int yLimit, bool& result);
+    /*
+     *  Checks if the cursor position is within +/- {xLimit} of the edge of the global screen coords or
+     *  within +/- {yLimit} of the edge of the global screen coords.
+     *
+     *  {xLimit} x limit in global screen coords to be considered the "Edge" of the screen.
+     *  {yLimit} y limit in global screen coords to be considered the "Edge" of the screen.
+     *
+     *  {result} set to true if either x or y of cursor position is within the {xLimit} or {yLimit} of the screens edge.
+     */
+    OSInterfaceError CursorIsWithinEdgeOfGlobalScreen(int xLimit, int yLimit, bool& result);
 
     /*
      * OSMainLoop is a way to run the native event system of an OS. This should be called in the
