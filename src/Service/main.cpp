@@ -31,6 +31,7 @@ class TestEventReceiver : public IOSEventReceiver
 
 int EventTest();
 int SocketTest(bool isServer);
+int NonBlockingSocketTest(bool isServer);
 int KeyTest();
 int MouseMoveTest();
 int ParaseArguments(int argc, char* argv[]);
@@ -109,6 +110,7 @@ int ParaseArguments(int argc, char* argv[])
     args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
     args::Group commandGroup(parser, "commands");
     args::Command testSocket(commandGroup, "test-socket", "perform a simple socket test, if -s is specified it will run as a server");
+    args::Command testSocketNoBlock(commandGroup, "test-socket-nonblocking", "perform a simple socket test, In non-blocking mode, if -s is specified it will run as a server");
     args::Command testEvent(commandGroup, "test-event", "perform event hooking tests, outputs all events found to stdout");
     args::Command testKey(commandGroup, "test-key", "perform key injection test, will inject scan code 20 into the OS");
     args::Command testMouseMove(commandGroup, "test-mousemove", "Perform mouse injection tests, will move mouse to random location on screen");
@@ -150,6 +152,10 @@ int ParaseArguments(int argc, char* argv[])
         if(testSocket)
         {
             return SocketTest(isServer);
+        }
+        else if (testSocketNoBlock)
+        {
+            NonBlockingSocketTest(isServer);
         }
         else if(testKey)
         {
@@ -350,6 +356,99 @@ int SocketTest(bool isServer)
             delete client;
         }
         break;
+    }
+
+
+    return 0;
+}
+
+int NonBlockingSocketTest(bool isServer)
+{
+    LOG_INFO << "SocketTest" << std::endl;
+
+
+    std::string toSend = "Hello !";
+
+    char type = isServer ? 's' : 'c';
+
+    Socket socket("0.0.0.0", 6555, false, SocketProtocol::SOCKET_P_TCP);
+    SocketError err = socket.SetIsBlocking(false);
+    if (err != SocketError::SOCKET_E_SUCCESS)
+    {
+        LOG_ERROR << "Error setting socket to non blocking " << SOCK_ERR_STR(&socket, err) << std::endl;
+        return 0;
+    }
+
+    switch (type)
+    {
+    case 'c':
+    {
+        do {
+            err = socket.Connect("127.0.0.1");
+        } while (err == SocketError::SOCKET_E_TIMEOUT);
+
+        if (err != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error connecting to server " << SOCK_ERR_STR(&socket, err) << std::endl;
+            break;
+        }
+
+        err = socket.Send(toSend);
+        if (err != SocketError::SOCKET_E_SUCCESS && err != SocketError::SOCKET_E_WOULD_BLOCK)
+        {
+            LOG_ERROR << "Error sending from client " << SOCK_ERR_STR(&socket, err) << std::endl;
+            break;
+        }
+
+        err = socket.WaitForServer();
+        if (err != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error sending from client " << SOCK_ERR_STR(&socket, err) << std::endl;
+            break;
+        }
+    }
+    break;
+    case 's':
+    {
+        SocketError e = socket.Bind("127.0.0.1");
+        if (e != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error binding socket " << SOCK_ERR_STR(&socket, e) << std::endl;
+            break;
+        }
+        e = socket.Listen();
+        if (e != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error listening on socket " << SOCK_ERR_STR(&socket, e) << std::endl;
+            break;
+        }
+        Socket* client = 0;
+        do
+        {
+            e = socket.Accept(&client);
+        } while (e == SocketError::SOCKET_E_TIMEOUT);
+
+        if (e != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error accepting client " << SOCK_ERR_STR(client, e) << std::endl;
+            break;
+        }
+        char buf[256] = { 0 };
+        size_t received = 0;
+        e = client->Recv(buf, sizeof(buf), &received);
+        if (e != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Error recieving from client " << SOCK_ERR_STR(client, e) << std::endl;
+        }
+        else
+        {
+            buf[received] = 0;
+            LOG_INFO << "Server Received {" << buf << "} From Client !" << std::endl;
+        }
+
+        delete client;
+    }
+    break;
     }
 
 
