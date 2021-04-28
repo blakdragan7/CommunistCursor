@@ -795,7 +795,19 @@ SocketError Socket::Accept(NativeSocketHandle* acceptedSocket, size_t timeout)
     if (*acceptedSocket == (NativeSocketHandle)INVALID_SOCKET)
     {
         lastOSErr = OSGetLastError();
-        return SOCK_ERR(lastOSErr);
+        SocketError e = SOCK_ERR(lastOSErr);
+        if (e == SocketError::SOCKET_E_WOULD_BLOCK || e == SocketError::SOCKET_E_OP_IN_PROGRESS)
+        {
+            bool hasInput = false;
+            e = HasReadInput(hasInput, std::chrono::milliseconds(timeout));
+            if (e != SocketError::SOCKET_E_SUCCESS)
+            {
+                return e;
+            }
+
+            *acceptedSocket = (NativeSocketHandle)accept((SOCKET)_sfd, NULL, NULL);
+        }
+        else return e;
     }
 
     return SocketError::SOCKET_E_SUCCESS;
@@ -854,7 +866,46 @@ SocketError Socket::Accept(Socket** acceptedSocket)
 
 SocketError Socket::Accept(Socket** acceptedSocket, size_t timeout)
 {
-    return SocketError::SOCKET_E_NOT_IMPLEMENTED;
+    if (_isListening == false)
+        return SocketError::SOCKET_E_NOT_LISTENING;
+
+    NativeSocketHandle newSFD = 0;
+    SocketError e = Accept(&newSFD, timeout);
+
+    if (e != SocketError::SOCKET_E_SUCCESS)
+    {
+        return e;
+    }
+
+    struct sockaddr_in clientInfo = { 0 };
+    socklen_t length = sizeof(clientInfo);
+    int iresult = getpeername((SOCKET)newSFD, (struct sockaddr*)&clientInfo, &length);
+    if (iresult == SOCKET_ERROR)
+    {
+        lastOSErr = OSGetLastError();
+        closesocket((SOCKET)newSFD);
+        return SOCK_ERR(lastOSErr);
+    }
+
+    Socket* newSocket = new Socket(this->_protocol, newSFD);
+
+    char newAddress[256] = { 0 };
+
+    inet_ntop(clientInfo.sin_family, (const void*)&clientInfo.sin_addr, newAddress, sizeof(newAddress));
+
+    newSocket->_isConnected = true;
+    newSocket->_isListening = false;
+    newSocket->_isBound = false;
+    newSocket->_port = clientInfo.sin_port;
+    newSocket->_address = newAddress;
+
+    newSocket->_internalSockInfo = 0;
+    newSocket->_isBindable = false;
+    newSocket->_useIPV6 = this->_useIPV6;
+
+    *acceptedSocket = newSocket;
+
+    return SocketError::SOCKET_E_SUCCESS;
 }
 
 SocketError Socket::HasReadInput(bool& outHasReadInput)
