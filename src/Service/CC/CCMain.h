@@ -55,6 +55,7 @@ private:
 	CCConfigurationManager		_configManager;
 
 private:
+	void CheckJumpZones();
 	void SetupEntityConnections();
 	void RemoveLostEntites();
 
@@ -91,6 +92,7 @@ public:
 
 	// INetworkEntityDelegate Implmentation
 
+	virtual void EntityCursorPositionUpdate(CCNetworkEntity* entity, int x, int y);
 	virtual void EntityLost(CCNetworkEntity* entity)override;
 	virtual void LostServer()override;
 

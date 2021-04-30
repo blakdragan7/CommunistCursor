@@ -63,7 +63,7 @@ private:
     Socket(SocketProtocol protocol, NativeSocketHandle _sfd); 
     /* Used internally */
     SocketError Accept(NativeSocketHandle* acceptedSocket);
-    /* User internally with timeout NOT FULLY IMPLEMENTED*/
+    /* User internally with timeout in miliseconds*/
     SocketError Accept(NativeSocketHandle* acceptedSocket, size_t timeout);
 
     SocketError ConvertOSError(NativeError error);
@@ -117,9 +117,13 @@ public:
     // any clients waiting to connect passed the {maxAwaitingConnections} will be given an error and not connected
     SocketError Listen(int maxAwaitingConnections);
     // accepts a new Client socket from incoming connections
-    // you must delete {acceptSocket} when finished
+    // you must delete {*acceptSocket} when finished
     SocketError Accept(Socket** acceptedSocket);
-    // NOT FULLY IMPLEMENTED WILL ALWAYS RETURN ERROR
+    // accepts a new client socket from incomming connections
+    // in non blocking mode, {timeout} represents the miliseconds
+    // select will wait for an incomming connection
+    // in blocking mode {timeout} is ignored
+    // you must delete {*acceptSocket} when finished
     SocketError Accept(Socket** acceptedSocket, size_t timeout);
     // Get if the socket has data in it's read buffer
     // Generally used with Non-Blocking Sockets

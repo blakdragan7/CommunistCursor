@@ -425,7 +425,7 @@ int NonBlockingSocketTest(bool isServer)
         Socket* client = 0;
         do
         {
-            e = socket.Accept(&client);
+            e = socket.Accept(&client, 100);
         } while (e == SocketError::SOCKET_E_TIMEOUT);
 
         if (e != SocketError::SOCKET_E_SUCCESS)

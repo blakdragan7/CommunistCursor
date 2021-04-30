@@ -47,6 +47,8 @@ extern int StartProcessAsDesktopUser(std::string process, std::string args, std:
     this calles UpdateThread of the osi passed with a generate OSEvent from the native events
     received from the OS
 
+    {osi} the interface to receive os events
+
     this will return 0 if completed succesfully or a native error if it failes 
 */
 extern int NativeRegisterForOSEvents(OSInterface* osi);

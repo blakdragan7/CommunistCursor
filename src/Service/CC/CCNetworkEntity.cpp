@@ -52,7 +52,7 @@ SocketError CCNetworkEntity::SendRPCOfType(TCPPacketType rpcType, void* data, si
 
     NETCPPacketHeader packet((unsigned char)rpcType);
 
-    SocketError error = _tcpCommSocket->Send(&packet, sizeof(packet));
+    SocketError error = _tcpServerCommandSocket->Send(&packet, sizeof(packet));
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
         if (ShouldRetryRPC(error))
@@ -63,7 +63,7 @@ SocketError CCNetworkEntity::SendRPCOfType(TCPPacketType rpcType, void* data, si
         else return error;
     }
 
-    error = WaitForAwk(_tcpCommSocket.get());
+    error = WaitForAwk(_tcpServerCommandSocket.get());
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
         if (ShouldRetryRPC(error))
@@ -76,7 +76,7 @@ SocketError CCNetworkEntity::SendRPCOfType(TCPPacketType rpcType, void* data, si
 
     if (data && dataSize != 0)
     {
-        error = _tcpCommSocket->Send(data, dataSize);
+        error = _tcpServerCommandSocket->Send(data, dataSize);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             if (ShouldRetryRPC(error))
@@ -87,7 +87,7 @@ SocketError CCNetworkEntity::SendRPCOfType(TCPPacketType rpcType, void* data, si
             else return error;
         }
 
-        error = WaitForAwk(_tcpCommSocket.get());
+        error = WaitForAwk(_tcpServerCommandSocket.get());
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             if (ShouldRetryRPC(error))
@@ -111,7 +111,7 @@ bool CCNetworkEntity::ShouldRetryRPC(SocketError error) const
 {
     if (error == SocketError::SOCKET_E_NOT_CONNECTED)
     {
-        SocketError error = _tcpCommSocket->Connect(); 
+        SocketError error = _tcpServerCommandSocket->Connect(); 
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             return false; 
@@ -120,7 +120,7 @@ bool CCNetworkEntity::ShouldRetryRPC(SocketError error) const
     }
     else if (error == SocketError::SOCKET_E_BROKEN_PIPE)\
     {
-        _tcpCommSocket->Close(true); 
+        _tcpServerCommandSocket->Close(true); 
         return true; 
     }
     else return false;
@@ -146,7 +146,7 @@ SocketError CCNetworkEntity::WaitForAwk(Socket* socket)
 {
     NETCPPacketAwk awk;
     size_t received;
-    SocketError error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+    SocketError error = _tcpServerCommandSocket->Recv((char*)&awk, sizeof(awk), &received);
 
     if (received != sizeof(awk) || awk.MagicNumber != P_MAGIC_NUMBER)
     {
@@ -375,7 +375,7 @@ void CCNetworkEntity::CheckEventNeedsJumpZoneNotificationSent(const OSEvent& osE
                 SocketError err = SendRPCOfType(TCPPacketType::RPC_MouseInEdge, &packet, sizeof(packet));
                 if (err != SocketError::SOCKET_E_SUCCESS)
                 {
-                    LOG_ERROR << "Error sending mouse enterd jump zone packet " << SOCK_ERR_STR(_tcpCommSocket, err) << std::endl;
+                    LOG_ERROR << "Error sending mouse enterd jump zone packet " << SOCK_ERR_STR(_tcpServerCommandSocket, err) << std::endl;
                 }
             }
         }
@@ -383,31 +383,39 @@ void CCNetworkEntity::CheckEventNeedsJumpZoneNotificationSent(const OSEvent& osE
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _isLocalEntity(true), \
-_shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0)
+_shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0), _isServer(isServer)
 {
     // this is local so we make the server here
     int port = 1045; // this should be configured somehow at some point
     if (isServer == false)
     {
-        _tcpCommSocket = std::make_unique<Socket>(SOCKET_ANY_ADDRESS, port, false, SocketProtocol::SOCKET_P_TCP);
+        _tcpServerCommandSocket = std::make_unique<Socket>(SOCKET_ANY_ADDRESS, port, false, SocketProtocol::SOCKET_P_TCP);
         _udpCommSocket = std::make_unique<Socket>(SOCKET_ANY_ADDRESS, 1047, false, SocketProtocol::SOCKET_P_UDP);
+
         _tcpCommQueue = CREATE_SERIAL_QUEUE("CCNetworkEntity TCP Comm Thread");
         _udpCommQueue = CREATE_SERIAL_QUEUE("CCNetworkEntity UDP Comm Thread");
+
         DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::TCPCommThread, this));
         DISPATCH_ASYNC_SERIAL(_udpCommQueue, std::bind(&CCNetworkEntity::UDPCommThread, this));
     }
+    else
+    {
+        _clientUpdateQueue = CREATE_SERIAL_QUEUE("CCNetworkEntity Client Update Queue");
+    }
 }
 
-CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, Socket* socket) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _udpCommSocket(socket),\
-_isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false)
+CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, Socket* udpSocket, Socket* tcpSocket) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _udpCommSocket(udpSocket),\
+_isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _tcpClientUpdateSocket(tcpSocket), _isServer(false)
 {
     // this is a remote entity so we create a tcp client here
-    std::string address = socket->Address();
+    std::string address = udpSocket->Address();
     int port = 1045; // this should be configured somehow at some point
 
     // this is our comm socket, we don't need to do anything else at this point with it
-    _tcpCommSocket = std::make_unique<Socket>(address, port, false, SocketProtocol::SOCKET_P_TCP);
+    _tcpServerCommandSocket = std::make_unique<Socket>(address, port, false, SocketProtocol::SOCKET_P_TCP);
     _tcpCommQueue = CREATE_SERIAL_QUEUE("CCNetworkEntity Heartbeat Queue");
+
+    _clientUpdateQueue = CREATE_SERIAL_QUEUE("CCNetworkEntity Client Update Queue");
 
     DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HeartbeatThread, this));
 }
@@ -440,44 +448,54 @@ void CCNetworkEntity::SendOSEvent(const OSEvent& event)
 
     std::lock_guard<std::mutex> lock(_tcpMutex);
 
-    if (_tcpCommSocket->IsConnected() == false)
+    if (_tcpServerCommandSocket->IsConnected() == false)
     {
-        SocketError error = _tcpCommSocket->Connect();
+        SocketError error = _tcpServerCommandSocket->Connect();
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Connecting tcp socket Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Error Connecting tcp socket Error: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
             return;
         }
     }
 
     NETCPPacketHeader header((char)TCPPacketType::OSEventHeader);
-    SocketError error = _tcpCommSocket->Send(&header, sizeof(header));
+    SocketError error = _tcpServerCommandSocket->Send(&header, sizeof(header));
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
-        LOG_ERROR << "Error sending NETCPPacketHeader Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        LOG_ERROR << "Error sending NETCPPacketHeader Error: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         return;
     }
 
-    error = WaitForAwk(_tcpCommSocket.get());
+    error = WaitForAwk(_tcpServerCommandSocket.get());
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
-        LOG_ERROR << "Error waiting for client Awk Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        LOG_ERROR << "Error waiting for client Awk Error: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         return;
     }
 
     OSInputEventPacket packet(event);
 
-    error = _tcpCommSocket->Send(&packet, sizeof(packet));
+    error = _tcpServerCommandSocket->Send(&packet, sizeof(packet));
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
-        LOG_ERROR << "Error sending OSInputEventPacket Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        LOG_ERROR << "Error sending OSInputEventPacket Error: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         return;
     }
 
-    error = WaitForAwk(_tcpCommSocket.get());
+    error = WaitForAwk(_tcpServerCommandSocket.get());
     if(error !=SocketError::SOCKET_E_SUCCESS)
     {
-        LOG_ERROR << "Error waiting for client Awk Error: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        LOG_ERROR << "Error waiting for client Awk Error: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
+    }
+}
+
+void CCNetworkEntity::SendMouseUpdatePacket(int x, int y)
+{
+    NETCPCursorUpdate packet(x, y);
+    SocketError error = _tcpClientUpdateSocket->Send((char*)&packet, sizeof(packet));
+    if (error != SocketError::SOCKET_E_SUCCESS)
+    {
+        LOG_ERROR << "SendMouseUpdatePacket: Error sending cursor update " << SOCK_ERR_STR(_tcpClientUpdateSocket, error) << std::endl;
     }
 }
 
@@ -616,8 +634,8 @@ void CCNetworkEntity::ShutdownThreads()
     if (_udpCommSocket.get())
         _udpCommSocket->Close();
 
-    if (_tcpCommSocket.get())
-        _tcpCommSocket->Close();
+    if (_tcpServerCommandSocket.get())
+        _tcpServerCommandSocket->Close();
 }
 
 void CCNetworkEntity::RPC_SetMousePosition(float xPercent, float yPercent)
@@ -641,7 +659,7 @@ void CCNetworkEntity::RPC_SetMousePosition(float xPercent, float yPercent)
         SocketError error = SendRPCOfType(TCPPacketType::RPC_SetMousePosition, &data, sizeof(data));
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Could not perform RPC_StartWarpingMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Could not perform RPC_StartWarpingMouse!: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         }
     }
 }
@@ -658,7 +676,7 @@ void CCNetworkEntity::RPC_HideMouse()
         SocketError error = SendRPCOfType(TCPPacketType::RPC_HideMouse);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Could not perform RPC_HideMouse!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Could not perform RPC_HideMouse!: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         }
     }
 }
@@ -675,7 +693,7 @@ void CCNetworkEntity::RPC_UnhideMouse()
         SocketError error = SendRPCOfType(TCPPacketType::RPC_UnhideMouse);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Could not perform RPC!: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Could not perform RPC!: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         }
     }
 }
@@ -697,46 +715,46 @@ void CCNetworkEntity::SendLocalClipBoardData()
             return;
     
         NETCPPacketHeader nheader((char)TCPPacketType::OSEventCLipboard);
-        SocketError error = _tcpCommSocket->Send(&nheader, sizeof(nheader));
+        SocketError error = _tcpServerCommandSocket->Send(&nheader, sizeof(nheader));
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Sending NETCPPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            LOG_ERROR << "Error Sending NETCPPacketHeader: " << SOCK_ERR_STR(_tcpServerCommandSocket, error) << std::endl;
             return;
         }
 
-        error = WaitForAwk(_tcpCommSocket.get());
+        error = WaitForAwk(_tcpServerCommandSocket.get());
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Waiting For Awk after Sending NETCPPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            LOG_ERROR << "Error Waiting For Awk after Sending NETCPPacketHeader: " << SOCK_ERR_STR(_tcpServerCommandSocket, error) << std::endl;
             return;
         }
 
         OSClipboardDataPacketHeader header(data);
-        error = _tcpCommSocket->Send((void*)&header, sizeof(header));
+        error = _tcpServerCommandSocket->Send((void*)&header, sizeof(header));
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Sending OSClipboardDataPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            LOG_ERROR << "Error Sending OSClipboardDataPacketHeader: " << SOCK_ERR_STR(_tcpServerCommandSocket, error) << std::endl;
             return;
         }
 
-        error = WaitForAwk(_tcpCommSocket.get());
+        error = WaitForAwk(_tcpServerCommandSocket.get());
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Waiting For Awk after Sending OSClipboardDataPacketHeader: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            LOG_ERROR << "Error Waiting For Awk after Sending OSClipboardDataPacketHeader: " << SOCK_ERR_STR(_tcpServerCommandSocket, error) << std::endl;
             return;
         }
 
-        error = _tcpCommSocket->Send(data.stringData);
+        error = _tcpServerCommandSocket->Send(data.stringData);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Sending Clipboard Data: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            LOG_ERROR << "Error Sending Clipboard Data: " << SOCK_ERR_STR(_tcpServerCommandSocket, error) << std::endl;
             return;
         }
 
-        error = WaitForAwk(_tcpCommSocket.get());
+        error = WaitForAwk(_tcpServerCommandSocket.get());
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Waiting For Awk After Sending Clipboard Data: " << SOCK_ERR_STR(_tcpCommSocket, error) << std::endl;
+            LOG_ERROR << "Error Waiting For Awk After Sending Clipboard Data: " << SOCK_ERR_STR(_tcpServerCommandSocket, error) << std::endl;
             return;
         }
     }
@@ -745,30 +763,30 @@ void CCNetworkEntity::SendLocalClipBoardData()
 void CCNetworkEntity::TCPCommThread()
 {
     SocketError error;
-    if (_tcpCommSocket->IsBound() == false)
+    if (_tcpServerCommandSocket->IsBound() == false)
     {
-        error = _tcpCommSocket->Bind();
+        error = _tcpServerCommandSocket->Bind();
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Binding Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Error Binding Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         }
     }
 
-    if (_tcpCommSocket->IsListening() == false)
+    if (_tcpServerCommandSocket->IsListening() == false)
     {
-        error = _tcpCommSocket->Listen();
+        error = _tcpServerCommandSocket->Listen();
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
-            LOG_ERROR << "Error Listening From Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+            LOG_ERROR << "Error Listening From Network Entity TCP Comm Socket: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
         }
     }
 
     Socket* pserver = NULL;
-    error = _tcpCommSocket->Accept(&pserver);
+    error = _tcpServerCommandSocket->Accept(&pserver);
 
     if (error != SocketError::SOCKET_E_SUCCESS)
     {
-        LOG_ERROR << "Error accepting server connection: " << SOCK_ERR_STR(_tcpCommSocket.get(), error) << std::endl;
+        LOG_ERROR << "Error accepting server connection: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
     }
 
     if(_shouldBeRunningCommThread)
@@ -800,17 +818,16 @@ void CCNetworkEntity::UDPCommThread()
         DISPATCH_ASYNC_SERIAL(_udpCommQueue, std::bind(&CCNetworkEntity::UDPCommThread, this));
 
     OSInterface::SharedInterface().SendOSEvent(event);
-    CheckEventNeedsJumpZoneNotificationSent(event);
 }
 
 void CCNetworkEntity::HeartbeatThread()
 {
     NETCPPacketHeader hearbeat((char)TCPPacketType::Heartbeat);
 
-    if (_tcpCommSocket->IsConnected() == false)
+    if (_tcpServerCommandSocket->IsConnected() == false)
     {
         std::lock_guard<std::mutex> lock(_tcpMutex);
-        SocketError error = _tcpCommSocket->Connect();
+        SocketError error = _tcpServerCommandSocket->Connect();
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             if (_delegate)
@@ -825,7 +842,7 @@ void CCNetworkEntity::HeartbeatThread()
     auto nextHeartbeat = std::chrono::system_clock::now() + std::chrono::seconds(5);
     {
         std::lock_guard<std::mutex> lock(_tcpMutex);
-        SocketError error = _tcpCommSocket->Send((void*)&hearbeat, sizeof(hearbeat));
+        SocketError error = _tcpServerCommandSocket->Send((void*)&hearbeat, sizeof(hearbeat));
 
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
@@ -839,7 +856,7 @@ void CCNetworkEntity::HeartbeatThread()
 
         NETCPPacketAwk awk;
         size_t received = 0;
-        error = _tcpCommSocket->Recv((char*)&awk, sizeof(awk), &received);
+        error = _tcpServerCommandSocket->Recv((char*)&awk, sizeof(awk), &received);
         if (error != SocketError::SOCKET_E_SUCCESS)
         {
             if (_delegate)
@@ -862,7 +879,7 @@ void CCNetworkEntity::HeartbeatThread()
 
     if (_shouldBeRunningCommThread)
     {
-        if (_tcpCommSocket->IsConnected() == false)
+        if (_tcpServerCommandSocket->IsConnected() == false)
         {
             _delegate->EntityLost(this);
             _shouldBeRunningCommThread = false;
@@ -871,6 +888,36 @@ void CCNetworkEntity::HeartbeatThread()
 
         DISPATCH_AFTER_SERIAL(nextHeartbeat - TIME_NOW,_tcpCommQueue, std::bind(&CCNetworkEntity::HeartbeatThread, this))
     }
+}
+
+void CCNetworkEntity::ClientUpdateThread()
+{
+
+    if (_tcpClientUpdateSocket->IsConnected() == false)
+    {
+        LOG_DEBUG << "Client " << this->_entityName << " No Longer Connected, Updates impossible" << std::endl;
+        return;
+    }
+
+    NETCPCursorUpdate packet;
+    size_t received = 0;
+    SocketError error = _tcpClientUpdateSocket->Recv((char*)&packet, sizeof(packet), &received);
+    if (error != SocketError::SOCKET_E_SUCCESS)
+    {
+        LOG_ERROR << "ClientUpdateThread: Error trying to get update from Client " << SOCK_ERR_STR(_tcpClientUpdateSocket, error) << std::endl;
+    }
+
+    if (received != sizeof(packet) || packet.MagicNumber != P_MAGIC_NUMBER)
+    {
+        LOG_ERROR << "ClientUpdateThread: Error trying to get update from Client Invalid Packet received" << std::endl;
+    }
+
+    if (_delegate)
+    {
+        _delegate->EntityCursorPositionUpdate(this, packet.x + _offsets.x, packet.y + _offsets.y);
+    }
+
+    DISPATCH_ASYNC_SERIAL(_clientUpdateQueue, std::bind(&CCNetworkEntity::ClientUpdateThread, this));
 }
 
 bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** jumpEntity, JumpDirection& direction)const

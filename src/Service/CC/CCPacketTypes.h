@@ -114,6 +114,15 @@ struct NETCPCursorInEdge
 	NETCPCursorInEdge(float x, float y) : MagicNumber(P_MAGIC_NUMBER), x(x), y(y) {}
 };
 
+struct NETCPCursorUpdate
+{
+	int x;
+	int y;
+	unsigned int MagicNumber;
+	NETCPCursorUpdate() : MagicNumber(P_MAGIC_NUMBER), x(0), y(0) {}
+	NETCPCursorUpdate(int x, int y) : MagicNumber(P_MAGIC_NUMBER), x(x), y(y) {}
+};
+
 struct NETCPPacketAwk
 {
 	unsigned int MagicNumber;
