@@ -6,6 +6,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
+#define GETSOCKOPT(a,b,c,d,e) getsockopt((SOCKET)a,b,c,(char*)d, e)
 
 #else
 
@@ -20,6 +21,7 @@
 #include <sys/errno.h>
 
 #define ioctlsocket ioctl
+#define GETSOCKOPT(a,b,c,d,e) getsockopt((SOCKET)a,b,c,(void*)d, (socklen_t*)e)
 
 #endif
 
@@ -271,7 +273,7 @@ SocketError Socket::Connect()
         if (err == SocketError::SOCKET_E_WOULD_BLOCK || err == SocketError::SOCKET_E_OP_IN_PROGRESS)
         {
             fd_set read, write, uer;
-            TIMEVAL timeout;
+            struct timeval timeout;
 
             FD_ZERO(&read);
             FD_ZERO(&write);
@@ -287,7 +289,7 @@ SocketError Socket::Connect()
             int oer = select(0, &read, &write, &uer, &timeout);
             if (oer == SOCKET_ERROR)
             {
-                lastOSErr = GetLastError();
+                lastOSErr = OSGetLastError();
                 return SOCK_ERR(lastOSErr);
             }
             else if (oer == 0)
@@ -299,16 +301,16 @@ SocketError Socket::Connect()
                 if (FD_ISSET((SOCKET)_sfd, &uer))
                 {
                     int len = sizeof(lastOSErr);
-                    if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+                    if (GETSOCKOPT(_sfd, SOL_SOCKET, SO_ERROR, &lastOSErr, &len))
                     {
-                        lastOSErr = GetLastError();
+                        lastOSErr = OSGetLastError();
                     }
                     return SOCK_ERR(lastOSErr);
                 }
 
                 if (FD_ISSET((SOCKET)_sfd, &read) && FD_ISSET((SOCKET)_sfd, &write))
                 {
-                    addrInfo = (ADDRINFO*)_internalSockInfo;
+                    addrInfo = (struct addrinfo*)_internalSockInfo;
                 }
             }
         }
@@ -877,9 +879,9 @@ SocketError Socket::HasReadInput(bool& outHasReadInput)
         if (FD_ISSET((SOCKET)_sfd, &err))
         {
             int len = sizeof(lastOSErr);
-            if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+            if (GETSOCKOPT(_sfd, SOL_SOCKET, SO_ERROR, &lastOSErr, &len))
             {
-                lastOSErr = GetLastError();
+                lastOSErr = OSGetLastError();
             }
             return SOCK_ERR(lastOSErr);
         }
@@ -920,9 +922,9 @@ SocketError Socket::HasReadInput(bool& outHasReadInput, WaitDuration  duration)
         if (FD_ISSET((SOCKET)_sfd, &err))
         {
             int len = sizeof(lastOSErr);
-            if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+            if (GETSOCKOPT(_sfd, SOL_SOCKET, SO_ERROR, &lastOSErr, &len))
             {
-                lastOSErr = GetLastError();
+                lastOSErr = OSGetLastError();
             }
             return SOCK_ERR(lastOSErr);
         }
@@ -958,9 +960,9 @@ SocketError Socket::HasWriteOutput(bool& outHasWriteOutput)
         if (FD_ISSET((SOCKET)_sfd, &err))
         {
             int len = sizeof(lastOSErr);
-            if (getsockopt((SOCKET)_sfd, SOL_SOCKET, SO_ERROR, (char*)&lastOSErr, &len))
+            if (GETSOCKOPT(_sfd, SOL_SOCKET, SO_ERROR, &lastOSErr, &len))
             {
-                lastOSErr = GetLastError();
+                lastOSErr = OSGetLastError();
             }
             return SOCK_ERR(lastOSErr);
         }
