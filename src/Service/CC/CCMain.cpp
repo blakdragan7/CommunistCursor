@@ -48,6 +48,55 @@ std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string su
 // Discovery uses udp 1046
 // OSEvents use udo 1265
 
+void CCMain::CheckJumpZones()
+{
+	Point offsetPos = _currentMousePosition;
+	JumpDirection direction;
+	CCNetworkEntity* nextEntity = 0;
+	if (_currentEntity->GetEntityForPointInJumpZone(offsetPos, &nextEntity, direction))
+	{
+		// we have a jump zone
+		LOG_INFO << "Jump To { id: " << nextEntity->GetID() << " , name: " << nextEntity->GetName() << " }" << std::endl;
+		LOG_INFO << "From { id: " << _currentEntity->GetID() << " , name: " << _currentEntity->GetName() << " }" << std::endl;
+
+		// hide mouse
+		LOG_DEBUG << "Hide Mouse Current" << std::endl;
+		_currentEntity->RPC_HideMouse();
+
+		// Force mouse to be in center of screen
+		LOG_DEBUG << "Warp Current Mouse To Center" << std::endl;
+		_currentEntity->RPC_SetMousePosition(0.5f, 0.5f);
+		if (_currentEntity->GetIsLocal())
+			_ignoreInputEvent = true;
+
+		// unhide mouse of last entity
+		LOG_DEBUG << "Unhide Mouse Next" << std::endl;
+		nextEntity->RPC_UnhideMouse();
+
+		LOG_DEBUG << "Sending Clipbaord To New Entity" << std::endl;
+		nextEntity->SendLocalClipBoardData();
+
+		_currentEntity = nextEntity;
+
+		_currentMousePosition = offsetPos;
+
+		if (_currentEntity->GetIsLocal())
+		{
+			OSEvent localEvent;
+			localEvent.eventType = OS_EVENT_MOUSE;
+			localEvent.mouseEvent = MOUSE_EVENT_MOVE;
+			localEvent.x = _currentMousePosition.x;
+			localEvent.y = _currentMousePosition.y;
+
+			LOG_DEBUG << "Warping Local With Event " << localEvent << std::endl;
+
+			DISPATCH_ASYNC([localEvent]()
+			{OSInterface::SharedInterface().SendMouseEvent(localEvent); })
+			_ignoreInputEvent = true;
+		}
+	}
+}
+
 void CCMain::SetupEntityConnections()
 {
 	// clear everybody before reassigning
@@ -143,57 +192,7 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 	{
 		if (event.mouseEvent == MOUSE_EVENT_MOVE)
 		{
-			_currentMousePosition.x += event.deltaX;
-			_currentMousePosition.y += event.deltaY;
-
 			isMove = true;
-		}
-	}
-
-	Point offsetPos = _currentMousePosition;
-	JumpDirection direction;
-	CCNetworkEntity* nextEntity = 0;
-	if (_currentEntity->GetEntityForPointInJumpZone(offsetPos, &nextEntity, direction))
-	{
-		// we have a jump zone
-		LOG_INFO << "Jump To { id: " << nextEntity->GetID() << " , name: " << nextEntity->GetName() << " }" << std::endl;
-		LOG_INFO << "From { id: " << _currentEntity->GetID() << " , name: " << _currentEntity->GetName() << " }" << std::endl;
-
-		// hide mouse
-		LOG_DEBUG << "Hide Mouse Current" << std::endl;
-		_currentEntity->RPC_HideMouse();
-
-		// Force mouse to be in center of screen
-		LOG_DEBUG << "Warp Current Mouse To Center" << std::endl;
-		_currentEntity->RPC_SetMousePosition(0.5f, 0.5f);
-		if (_currentEntity->GetIsLocal())
-			_ignoreInputEvent = true;
-
-		// unhide mouse of last entity
-		LOG_DEBUG << "Unhide Mouse Next" << std::endl;
-		nextEntity->RPC_UnhideMouse();
-
-		LOG_DEBUG << "Sending Clipbaord To New Entity" << std::endl;
-		nextEntity->SendLocalClipBoardData();
-
-		_currentEntity = nextEntity;
-
-		_currentMousePosition = offsetPos;
-
-		if (_currentEntity->GetIsLocal())
-		{
-			OSEvent localEvent;
-			localEvent.eventType = OS_EVENT_MOUSE;
-			localEvent.mouseEvent = MOUSE_EVENT_MOVE;
-			localEvent.x = _currentMousePosition.x;
-			localEvent.y = _currentMousePosition.y;
-
-			LOG_DEBUG << "Warping Local With Event " << localEvent << std::endl;
-
-			DISPATCH_ASYNC([localEvent]()
-			{OSInterface::SharedInterface().SendMouseEvent(localEvent); })
-
-			_ignoreInputEvent = true;
 		}
 	}
 
@@ -201,6 +200,8 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 	{
 		_currentMousePosition.x = origX;
 		_currentMousePosition.y = origY;
+
+		CheckJumpZones();
 
 		return false;
 	}
@@ -369,7 +370,15 @@ void CCMain::StartClientMain()
 	// this connection will be disconnected and the server will re-connect via the remote CCNetworkEntity
 	_client->ConnectToServer(_localEntity, address.first, address.second);
 
+#if REGISTER_OS_EVENTS
+	OSInterface::SharedInterface().RegisterForOSEvents(this);
+#endif
+
 	OSInterface::SharedInterface().OSMainLoop();
+
+#if REGISTER_OS_EVENTS
+	OSInterface::SharedInterface().UnRegisterForOSEvents(this);
+#endif
 }
 
 void CCMain::StopServer()
@@ -491,6 +500,17 @@ void CCMain::NewEntityDiscovered(std::shared_ptr<CCNetworkEntity> entity)
 	SetupEntityConnections();
 }
 
+void CCMain::EntityCursorPositionUpdate(CCNetworkEntity* entity, int x, int y)
+{
+	if (entity == _currentEntity)
+	{
+		_currentMousePosition.x = x;
+		_currentMousePosition.y = y;
+
+		CheckJumpZones();
+	}
+}
+
 void CCMain::EntityLost(CCNetworkEntity* entity)
 {
 	entity->ClearAllEntities();
@@ -534,18 +554,31 @@ void CCMain::EntitiesFinishedConfiguration()
 
 bool CCMain::ReceivedNewInputEvent(OSEvent event)
 {
-	if (event.eventType == OS_EVENT_KEY && event.scanCode == (int)KeyCode::KC_PAGE_DOWN)
+	if (_localEntity)
 	{
-		_currentEntity = _localEntity.get();
-		_currentEntity->RPC_UnhideMouse();
-		_currentEntity->RPC_SetMousePosition(0.5, 0.5);
-		Rect bounds = _currentEntity->GetBounds();
-		_currentMousePosition = bounds.topLeft + ((bounds.bottomRight - bounds.topLeft) / 2);
-		return false;
+		if (_localEntity->GetIsServer())
+		{
+			if (event.eventType == OS_EVENT_KEY && event.scanCode == (int)KeyCode::KC_PAGE_DOWN)
+			{
+				_currentEntity = _localEntity.get();
+				_currentEntity->RPC_UnhideMouse();
+				_currentEntity->RPC_SetMousePosition(0.5, 0.5);
+				Rect bounds = _currentEntity->GetBounds();
+				_currentMousePosition = bounds.topLeft + ((bounds.bottomRight - bounds.topLeft) / 2);
+				return false;
+			}
+			DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::ProcessInputEvent, this, event));
+			return !_currentEntity->GetIsLocal() && ((event.eventType == OS_EVENT_MOUSE && event.mouseEvent != MOUSE_EVENT_MOVE) || (event.eventType != OS_EVENT_MOUSE));
+		}
+		else
+		{
+			_localEntity->SendMouseUpdatePacket(event.x, event.y);
+		}
 	}
-	DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::ProcessInputEvent, this, event));
 
-	return !_currentEntity->GetIsLocal() && ((event.eventType == OS_EVENT_MOUSE && event.mouseEvent != MOUSE_EVENT_MOVE) || (event.eventType != OS_EVENT_MOUSE));
+
+
+	return false;
 }
 
 // move these somewhere else later

@@ -54,17 +54,19 @@ class CCNetworkEntity
 {
 private:
     std::unique_ptr<Socket> _udpCommSocket;
-    std::unique_ptr<Socket> _tcpCommSocket; // is a server on local entities and a client for remote
+    std::unique_ptr<Socket> _tcpServerCommandSocket; // Used to send commands from server => client. Client side reads from this socket, server side writes
+    std::unique_ptr<Socket> _tcpClientUpdateSocket; // Used to send commands from client => Server. Clients use this socket to update the server about themselves.
     std::vector<std::shared_ptr<CCDisplay>> _displays;
     std::string _entityID;
     std::string _entityName;
+    bool _isServer;
     bool _isLocalEntity;
     bool _wasGivenOffset;
     std::mutex      _tcpMutex;
 
-    // only used client side
-    unsigned           _tcpCommQueue;
+    unsigned           _tcpCommQueue; 
     unsigned           _udpCommQueue;
+    unsigned           _clientUpdateQueue;
     std::atomic<bool>  _shouldBeRunningCommThread;
 
     // only used server side
@@ -97,10 +99,12 @@ private:
 
 public:
     CCNetworkEntity(std::string entityID, std::string entityName, bool isServer = false);
-    CCNetworkEntity(std::string entityID, std::string entityName, Socket* socket);
+    CCNetworkEntity(std::string entityID, std::string entityName, Socket* udpSocket, Socket* tcpSocket);
     ~CCNetworkEntity();
     // converts event into the appropriate packet and sends it over with a header
     void SendOSEvent(const OSEvent& event);
+    // Sends a mouse update packet to server.
+    void SendMouseUpdatePacket(int x,int y);
     // sends the clipboard data to the remote computer if this is not a local entity
     // if this is a local entity this just does nothing
     // also if there is no clipboard data to send this does nothing
@@ -140,8 +144,11 @@ public:
     void UDPCommThread();
 
     // Server Functions
-    // this is a bad way to do this because it's a thread per NetworkEntity but for now, it will work
+    // Used to be bad but now is in the form of jobs so works fine
     void HeartbeatThread();
+
+    // Used for receiving Client Updates 
+    void ClientUpdateThread();
 
     // return a list of all displays accosiated with this entity
     // This is currently just used for hardcoding coords for testing
@@ -158,7 +165,8 @@ public:
 
     inline const std::string& GetID()const { return _entityID; }
     inline const std::string& GetName()const { return _entityName; }
-    inline bool GetIsLocal()const {return _isLocalEntity;};
+    inline bool GetIsLocal()const { return _isLocalEntity; }
+    inline bool GetIsServer()const { return _isLocalEntity && _isServer; }
     inline const Point& GetOffsets()const { return _offsets; }
     inline const Rect& GetBounds()const { return _totalBounds; }
     inline const Socket* GetUDPSocket()const { return _udpCommSocket.get(); }

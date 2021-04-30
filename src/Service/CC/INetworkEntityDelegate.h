@@ -5,6 +5,7 @@ class CCNetworkEntity;
 class INetworkEntityDelegate
 {
 public:
+	virtual void EntityCursorPositionUpdate(CCNetworkEntity* entity, int x, int y) = 0;
 	virtual void EntityLost(CCNetworkEntity* entity) = 0;
 	virtual void LostServer() = 0;
 };
