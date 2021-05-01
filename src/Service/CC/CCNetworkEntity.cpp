@@ -339,6 +339,9 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
                 }
             }
                 break;
+            case TCPPacketType::RPC_MouseInEdge: // do nothing
+            default:
+                break;
             }
         }
         else

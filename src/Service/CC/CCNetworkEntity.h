@@ -177,7 +177,8 @@ public:
     // setters
 
     inline void SetDelegate(INetworkEntityDelegate* newDelegate) { _delegate = newDelegate; }
-
+    inline void SetClientUpdateSock(Socket* sock) {_tcpClientUpdateSocket.reset(sock);}
+    
     // operators
 
     bool operator==(const CCNetworkEntity& other)const

@@ -19,12 +19,12 @@ CCClient::CCClient(int listenPort) : _serverAddress("0.0.0.0"), _listenPort(list
 
 void CCClient::ConnectToServer(std::shared_ptr<CCNetworkEntity> localEntity, std::string address, int port)
 {
-	Socket servSocket(address, port, false, SocketProtocol::SOCKET_P_TCP);
+	Socket* servSocket = new Socket(address, port, false, SocketProtocol::SOCKET_P_TCP);
 
-	SocketError error = servSocket.Connect();
+	SocketError error = servSocket->Connect();
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Trying To Connect To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Connect To Server: " << SOCK_ERR_STR(servSocket, error) << std::endl;
 		return;
 	}
 
@@ -33,10 +33,10 @@ void CCClient::ConnectToServer(std::shared_ptr<CCNetworkEntity> localEntity, std
 
 	EntityIDPacket idPacket(localEntity->GetID(), localEntity->GetName());
 
-	error = servSocket.Send((char*)&idPacket, sizeof(EntityIDPacket));
+	error = servSocket->Send((char*)&idPacket, sizeof(EntityIDPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Trying To Send ID Packet To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Send ID Packet To Server: " << SOCK_ERR_STR(servSocket, error) << std::endl;
 		return;
 	}
 
@@ -46,17 +46,17 @@ void CCClient::ConnectToServer(std::shared_ptr<CCNetworkEntity> localEntity, std
 	// this port will eventually be configurable but for now, random numbers
 	addPacket.Port = _listenPort;
 
-	error = servSocket.Send((char*)&addPacket, sizeof(AddressPacket));
+	error = servSocket->Send((char*)&addPacket, sizeof(AddressPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Trying To Send Address Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Send Address Server: " << SOCK_ERR_STR(servSocket, error) << std::endl;
 		return;
 	}
 
-	error = servSocket.Send((char*)&listHeader, sizeof(DisplayListHeaderPacket));
+	error = servSocket->Send((char*)&listHeader, sizeof(DisplayListHeaderPacket));
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Trying To Send List Header To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+		LOG_ERROR << "Error Trying To Send List Header To Server: " << SOCK_ERR_STR(servSocket, error) << std::endl;
 		return;
 	}
 
@@ -70,23 +70,17 @@ void CCClient::ConnectToServer(std::shared_ptr<CCNetworkEntity> localEntity, std
 		displayPacket.Height = display.height;
 		displayPacket.NativeDisplayID = display.nativeScreenID;
 
-		error = servSocket.Send((char*)&displayPacket, sizeof(DisplayListDisplayPacket));
+		error = servSocket->Send((char*)&displayPacket, sizeof(DisplayListDisplayPacket));
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			LOG_ERROR << "Error Trying To Send Display Info To Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
+			LOG_ERROR << "Error Trying To Send Display Info To Server: " << SOCK_ERR_STR(servSocket, error) << std::endl;
 			return;
 		}
 	}
 
-	// server will close socket on it's end when it receives everything
-	// we wait for it here
-	error = servSocket.WaitForServer();
-	if (error != SocketError::SOCKET_E_SUCCESS)
-	{
-		LOG_ERROR << "Error Trying To Wait For Server: " << SOCK_ERR_STR(&servSocket, error) << std::endl;
-		return;
-	}
-
+    // Entity takes ownership here
+    localEntity->SetClientUpdateSock(servSocket);
+    
 	_serverAddress = address;
 	_needsNewServer = false;
 }
