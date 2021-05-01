@@ -216,6 +216,32 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
                     RPC_SetMousePosition(data.x, data.y);
                 }
                 break;
+            case TCPPacketType::RPC_SetAbsoluteMousePosition:
+            {
+                NETCPCursorUpdate data;
+                error = server->Recv((char*)&data, sizeof(data), &received);
+                if (error != SocketError::SOCKET_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error receiving NetworkEntityRPCSetMouseData Packet from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                    return error;
+                }
+                if (received != sizeof(data))
+                {
+                    LOG_ERROR << "Error Received invalid NetworkEntityRPCSetMouseData from Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                    return error;
+                }
+
+                error = SendAwk(server);
+                if (error != SocketError::SOCKET_E_SUCCESS)
+                {
+                    LOG_ERROR << "Error Sending Awk to Server {" << server->Address() << "} " << SOCK_ERR_STR(server, error) << std::endl;
+                    return error;
+                }
+
+                LOG_DEBUG << "NetworkEntityRPCSetAbsoluteMouseData {" << data.x << "," << data.y << "}" << std::endl;
+                RPC_SetMousePositionAbsolute(data.x, data.y);
+            }
+                break;
             case TCPPacketType::RPC_HideMouse:
                 LOG_INFO << "RPC_HideMouse" << std::endl;
                 RPC_HideMouse();
@@ -636,6 +662,30 @@ void CCNetworkEntity::ShutdownThreads()
 
     if (_tcpServerCommandSocket.get())
         _tcpServerCommandSocket->Close();
+}
+
+void CCNetworkEntity::RPC_SetMousePositionAbsolute(int x, int y)
+{
+    if (_isLocalEntity)
+    {
+        // warp mouse
+        LOG_DEBUG << "RPC_SetAbsoluteMousePosition {" << x << "," << y << "}" << std::endl;
+
+        // spawn thread for to send input on because we don't want a dead lock with messages
+        // this is a windows issue and could be solved in OSInterface probably but for now
+        // this will work
+
+        DISPATCH_ASYNC(([x, y]() {OSInterface::SharedInterface().SetMousePosition(x, y); }));
+    }
+    else
+    {
+        NETCPCursorUpdate data(x + _offsets.x, y + _offsets.y);
+        SocketError error = SendRPCOfType(TCPPacketType::RPC_SetAbsoluteMousePosition, &data, sizeof(data));
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "Could not perform RPC_StartWarpingMouse!: " << SOCK_ERR_STR(_tcpServerCommandSocket.get(), error) << std::endl;
+        }
+    }
 }
 
 void CCNetworkEntity::RPC_SetMousePosition(float xPercent, float yPercent)

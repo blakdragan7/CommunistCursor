@@ -29,17 +29,18 @@ class INetworkEntityDelegate;
 enum class TCPPacketType : int
 {
     // RPC Types
-    RPC_SetMousePosition    = 0,
-    RPC_HideMouse           = 1,
-    RPC_UnhideMouse         = 2,
-    RPC_MouseInEdge         = 3,
+    RPC_SetMousePosition            = 0,
+    RPC_SetAbsoluteMousePosition    = 1,
+    RPC_HideMouse                   = 2,
+    RPC_UnhideMouse                 = 3,
+    RPC_MouseInEdge                 = 4,
 
     // Monitoring Types
-    Heartbeat               = 4,
+    Heartbeat                       = 5,
 
     // Events
-    OSEventHeader           = 5,
-    OSEventCLipboard        = 6
+    OSEventHeader                   = 6,
+    OSEventCLipboard                = 7
 };
 
 enum class JumpDirection : int
@@ -135,6 +136,7 @@ public:
 
     // RPC Functions
 
+    void RPC_SetMousePositionAbsolute(int x, int y);
     void RPC_SetMousePosition(float xPercent,float yPercent);
     void RPC_HideMouse();
     void RPC_UnhideMouse();

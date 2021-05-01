@@ -77,23 +77,12 @@ void CCMain::CheckJumpZones()
 		nextEntity->SendLocalClipBoardData();
 
 		_currentEntity = nextEntity;
-
 		_currentMousePosition = offsetPos;
 
-		if (_currentEntity->GetIsLocal())
-		{
-			OSEvent localEvent;
-			localEvent.eventType = OS_EVENT_MOUSE;
-			localEvent.mouseEvent = MOUSE_EVENT_MOVE;
-			localEvent.x = _currentMousePosition.x;
-			localEvent.y = _currentMousePosition.y;
+		LOG_DEBUG << "Setting cursor to jump zone on next entity {" << _currentMousePosition.x << "," << _currentMousePosition.y << "}" << std::endl;
 
-			LOG_DEBUG << "Warping Local With Event " << localEvent << std::endl;
-
-			DISPATCH_ASYNC([localEvent]()
-			{OSInterface::SharedInterface().SendMouseEvent(localEvent); })
-			_ignoreInputEvent = true;
-		}
+		_currentEntity->RPC_SetMousePositionAbsolute(_currentMousePosition.x, _currentMousePosition.y);
+		_ignoreInputEvent = true;
 	}
 }
 
@@ -264,7 +253,7 @@ void CCMain::SetupLocalEntity(bool isServer)
 
 CCMain::CCMain() : _server(new CCServer(6555, SOCKET_ANY_ADDRESS, this)), _client(new CCClient(1047)),
 _clientShouldRun(false), _serverShouldRun(false), _globalBounds({0,0,0,0}), _guiService(this), \
-_configFile("cc.json"), _ignoreInputEvent(false), _serverBroadcastQueue(0)
+_configFile("cc.json"), _ignoreInputEvent(false), _serverBroadcastQueue(0), _inputQueue(-1)
 {
 }
 
