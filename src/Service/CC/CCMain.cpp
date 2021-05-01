@@ -356,7 +356,6 @@ void CCMain::StartClientMain()
 	LOG_INFO << "Address: " << address.first << " Port: " << address.second << std::endl;
 
 	// This connects to the server and then tells the server everything it needs to know about us
-	// this connection will be disconnected and the server will re-connect via the remote CCNetworkEntity
 	_client->ConnectToServer(_localEntity, address.first, address.second);
 
 #if REGISTER_OS_EVENTS
