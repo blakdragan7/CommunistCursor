@@ -708,6 +708,21 @@ int GetMousePosition(int& xPos, int& yPos)
     return 0;
 }
 
+int GetNormalMousePosition(float xPos, float yPos)
+{
+    CGPoint point;
+    CGEventRef event = CGEventCreate(NULL);
+    point = CGEventGetLocation(event);
+    CFRelease(event);
+    
+    
+    
+    xPos = point.x;
+    yPos = point.y;
+    
+    return 0;
+}
+
 int SetMouseHidden(bool isHidden)
 {
     if(isHidden)
