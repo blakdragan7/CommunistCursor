@@ -448,6 +448,7 @@ _isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGiven
     _clientUpdateQueue = CREATE_SERIAL_QUEUE("CCNetworkEntity Client Update Queue");
 
     DISPATCH_ASYNC_SERIAL(_tcpCommQueue, std::bind(&CCNetworkEntity::HeartbeatThread, this));
+    DISPATCH_ASYNC_SERIAL(_clientUpdateQueue, std::bind(&CCNetworkEntity::ClientUpdateThread, this));
 }
 
 CCNetworkEntity::~CCNetworkEntity()
