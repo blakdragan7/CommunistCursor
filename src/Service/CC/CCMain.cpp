@@ -20,6 +20,7 @@
 #include <thread>
 
 #define REGISTER_OS_EVENTS 1
+#define REGISTER_OS_EVENTS_CLIENT 0
 
 #define DELTA_X_MAX 200
 #define DELTA_Y_MAX 200
@@ -360,13 +361,13 @@ void CCMain::StartClientMain()
 	// This connects to the server and then tells the server everything it needs to know about us
 	_client->ConnectToServer(_localEntity, address.first, address.second);
 
-#if REGISTER_OS_EVENTS
+#if REGISTER_OS_EVENTS_CLIENT
 	OSInterface::SharedInterface().RegisterForOSEvents(this);
 #endif
 
 	OSInterface::SharedInterface().OSMainLoop();
 
-#if REGISTER_OS_EVENTS
+#if REGISTER_OS_EVENTS_CLIENT
 	OSInterface::SharedInterface().UnRegisterForOSEvents(this);
 #endif
 }

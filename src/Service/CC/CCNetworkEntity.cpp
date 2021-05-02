@@ -529,7 +529,6 @@ void CCNetworkEntity::SendMouseUpdatePacket(int x, int y)
         {
             LOG_ERROR << "SendMouseUpdatePacket: Error sending cursor update " << SOCK_ERR_STR(_tcpClientUpdateSocket, error) << std::endl;
         }
-        LOG_INFO << "Send Mouse Update" << std::endl;
     }
 }
 
@@ -878,6 +877,13 @@ void CCNetworkEntity::UDPCommThread()
         DISPATCH_ASYNC_SERIAL(_udpCommQueue, std::bind(&CCNetworkEntity::UDPCommThread, this));
 
     OSInterface::SharedInterface().SendOSEvent(event);
+    
+    DISPATCH_AFTER_ID(std::chrono::milliseconds(100), _clientUpdateQueue, [this](){
+        int x;
+        int y;
+        OSInterface::SharedInterface().GetMousePosition(x, y);
+        SendMouseUpdatePacket(x, y);
+    });
 }
 
 void CCNetworkEntity::HeartbeatThread()
