@@ -466,7 +466,6 @@ void CCNetworkEntity::SendOSEvent(const OSEvent& event)
 
     if (event.eventType == OS_EVENT_MOUSE && event.mouseEvent == MOUSE_EVENT_MOVE)
     {
-        LOG_INFO << event << std::endl;
         OSInputEventPacket inputPacket(event);
         SocketError error = _udpCommSocket->Send(&inputPacket, sizeof(inputPacket));
         if (error != SocketError::SOCKET_E_SUCCESS)

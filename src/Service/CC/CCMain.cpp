@@ -187,13 +187,13 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 	}
 
 	//LOG_INFO << "ProcessInputEvent is local check" << std::endl;
-	if (_currentEntity->GetIsLocal())
+	if (_currentEntity->GetIsLocal() && isMove)
 	{
 		_currentMousePosition.x = origX;
 		_currentMousePosition.y = origY;
 
 		CheckJumpZones();
-
+		
 		return false;
 	}
 	else if (isMove && !_ignoreInputEvent)
