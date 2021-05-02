@@ -211,7 +211,6 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 		event.y = _currentMousePosition.y;
 	}
 
-	LOG_INFO << "ProcessInputEvent send event" << std::endl;
 	_currentEntity->SendOSEvent(event);
 
 	return false;
