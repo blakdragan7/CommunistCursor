@@ -1067,8 +1067,6 @@ int SendMouseEvent(const OSEvent mouseEvent)
         return ERROR_INVALID_PARAM;
     }
     
-    LOG_INFO << "Mouse X " << eventPosX << " Y " << eventPosY << std::endl;
-    
     if(isScrollEvent)
         event = CGEventCreateScrollWheelEvent(NULL, kCGScrollEventUnitPixel, 1, mouseEvent.extendButtonInfo*32);
     else

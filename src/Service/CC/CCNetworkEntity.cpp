@@ -412,7 +412,7 @@ void CCNetworkEntity::CheckEventNeedsJumpZoneNotificationSent(const OSEvent& osE
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, bool isServer) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _isLocalEntity(true), \
-_shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0), _isServer(isServer)
+_shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0), _isServer(isServer), _isActive(false)
 {
     // this is local so we make the server here
     int port = 1045; // this should be configured somehow at some point
@@ -429,12 +429,13 @@ _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpComm
     }
     else
     {
+        _isActive = true;
         _clientUpdateQueue = CREATE_SERIAL_QUEUE("CCNetworkEntity Client Update Queue");
     }
 }
 
 CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, Socket* udpSocket, Socket* tcpSocket) : _tcpCommQueue(0), _entityID(entityID), _entityName(entityName), _udpCommSocket(udpSocket),\
-_isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _tcpClientUpdateSocket(tcpSocket), _isServer(false)
+_isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _tcpClientUpdateSocket(tcpSocket), _isServer(false), _isActive(false)
 {
     // this is a remote entity so we create a tcp client here
     std::string address = udpSocket->Address();
@@ -520,11 +521,15 @@ void CCNetworkEntity::SendOSEvent(const OSEvent& event)
 
 void CCNetworkEntity::SendMouseUpdatePacket(int x, int y)
 {
-    NETCPCursorUpdate packet(x, y);
-    SocketError error = _tcpClientUpdateSocket->Send((char*)&packet, sizeof(packet));
-    if (error != SocketError::SOCKET_E_SUCCESS)
+    if(_isActive)
     {
-        LOG_ERROR << "SendMouseUpdatePacket: Error sending cursor update " << SOCK_ERR_STR(_tcpClientUpdateSocket, error) << std::endl;
+        NETCPCursorUpdate packet(x, y);
+        SocketError error = _tcpClientUpdateSocket->Send((char*)&packet, sizeof(packet));
+        if (error != SocketError::SOCKET_E_SUCCESS)
+        {
+            LOG_ERROR << "SendMouseUpdatePacket: Error sending cursor update " << SOCK_ERR_STR(_tcpClientUpdateSocket, error) << std::endl;
+        }
+        LOG_INFO << "Send Mouse Update" << std::endl;
     }
 }
 
@@ -723,6 +728,7 @@ void CCNetworkEntity::RPC_HideMouse()
     {
         // hide mouse
         OSInterface::SharedInterface().SetMouseHidden(true);
+        _isActive = false;
     }
     else
     {
@@ -740,6 +746,7 @@ void CCNetworkEntity::RPC_UnhideMouse()
     {
         // stop hide mouse
         OSInterface::SharedInterface().SetMouseHidden(false);
+        _isActive = true;
     }
     else
     {

@@ -60,6 +60,7 @@ private:
     std::vector<std::shared_ptr<CCDisplay>> _displays;
     std::string _entityID;
     std::string _entityName;
+    bool _isActive;
     bool _isServer;
     bool _isLocalEntity;
     bool _wasGivenOffset;
