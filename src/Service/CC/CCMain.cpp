@@ -168,7 +168,7 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 
 	int origX = event.x;
 	int origY = event.y;
-
+	//LOG_INFO << "ProcessInputEvent start" << std::endl;
 	// check if we should skep or if the mouse moved more then we think it should
 	if (_ignoreInputEvent || abs(event.deltaX) > DELTA_X_MAX || abs(event.deltaY) > DELTA_Y_MAX)
 	{
@@ -185,6 +185,7 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 		}
 	}
 
+	//LOG_INFO << "ProcessInputEvent is local check" << std::endl;
 	if (_currentEntity->GetIsLocal())
 	{
 		_currentMousePosition.x = origX;
@@ -209,6 +210,7 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 		event.y = _currentMousePosition.y;
 	}
 
+	LOG_INFO << "ProcessInputEvent send event" << std::endl;
 	_currentEntity->SendOSEvent(event);
 
 	return false;

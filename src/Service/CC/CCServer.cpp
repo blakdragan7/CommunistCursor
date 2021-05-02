@@ -73,7 +73,7 @@ void CCServer::AcceptServerSocket()
 	DISPATCH_ASYNC_SERIAL(_socketAcceptQueue, std::bind(&CCServer::AcceptServerSocket, this));
 
 	// me being lazy about memory management
-	std::unique_ptr<Socket> acceptedSocket(newSocket);
+	Socket* acceptedSocket = newSocket;
 
 	// AddressPacket is currently just used here to get the desired port
 	// but we may use it for the actuall conection address later
@@ -86,13 +86,13 @@ void CCServer::AcceptServerSocket()
 	error = acceptedSocket->Recv((char*)&idPacket, sizeof(EntityIDPacket), &received);
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Receiving EntityIDPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+		LOG_ERROR << "Error Receiving EntityIDPacket " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 		return ;
 	}
 
 	if (received != sizeof(EntityIDPacket) || idPacket.MagicNumber != P_MAGIC_NUMBER)
 	{
-		LOG_ERROR << "Invalid EntityIDPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+		LOG_ERROR << "Invalid EntityIDPacket Received " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 		return ;
 	}
 		
@@ -100,32 +100,32 @@ void CCServer::AcceptServerSocket()
 
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Receiving AddressPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+		LOG_ERROR << "Error Receiving AddressPacket " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 		return ;
 	}
 
 	if (received != sizeof(AddressPacket) || addPacket.MagicNumber != P_MAGIC_NUMBER)
 	{
-		LOG_ERROR << "Invalid AddressPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+		LOG_ERROR << "Invalid AddressPacket Received " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 		return ;
 	}
 
 	// socket is owned by entity as a uniqe_ptr so no delete needed
 	Socket* udpRemoteClientSocket = new Socket(acceptedSocket->Address(), addPacket.Port, acceptedSocket->CanUseIPV6(), SocketProtocol::SOCKET_P_UDP);
-	std::shared_ptr<CCNetworkEntity> entity(new CCNetworkEntity(idPacket.EntityID, idPacket.EntityName, udpRemoteClientSocket));
+	std::shared_ptr<CCNetworkEntity> entity(new CCNetworkEntity(idPacket.EntityID, idPacket.EntityName, udpRemoteClientSocket, acceptedSocket));
 
 	received = 0;
 	error = acceptedSocket->Recv((char*)&listHeaderPacket, sizeof(DisplayListHeaderPacket), &received);
 
 	if (error != SocketError::SOCKET_E_SUCCESS)
 	{
-		LOG_ERROR << "Error Receiving DisplayListHeaderPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+		LOG_ERROR << "Error Receiving DisplayListHeaderPacket " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 		return ;
 	}
 
 	if (received != sizeof(DisplayListHeaderPacket) || listHeaderPacket.MagicNumber != P_MAGIC_NUMBER)
 	{
-		LOG_ERROR << "Invalid DisplayListHeaderPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+		LOG_ERROR << "Invalid DisplayListHeaderPacket Received " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 		return;
 	}
 
@@ -144,14 +144,14 @@ void CCServer::AcceptServerSocket()
 
 		if (error != SocketError::SOCKET_E_SUCCESS)
 		{
-			LOG_ERROR << "Error Receiving DisplayListPacket " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Error Receiving DisplayListPacket " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 			failed = true;
 			break;
 		}
 
 		if (received != sizeof(DisplayListDisplayPacket) || displayPacket.MagicNumber != P_MAGIC_NUMBER)
 		{
-			LOG_ERROR << "Invalid DisplayListDisplayPacket Received " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
+			LOG_ERROR << "Invalid DisplayListDisplayPacket Received " << SOCK_ERR_STR(acceptedSocket, error) << std::endl;
 			failed = true;
 			break;
 		}
@@ -179,11 +179,4 @@ void CCServer::AcceptServerSocket()
 		return ;
 
 	_discoverer->NewEntityDiscovered(entity);
-
-	error = acceptedSocket->Close();
-	if (error != SocketError::SOCKET_E_SUCCESS)
-	{
-		// very strange if we hit here.
-		LOG_ERROR << "Error Closing Accepted Socket: " << SOCK_ERR_STR(acceptedSocket.get(), error) << std::endl;
-	}
 }
