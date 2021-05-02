@@ -497,7 +497,7 @@ void CCMain::EntityCursorPositionUpdate(CCNetworkEntity* entity, int x, int y)
 		_currentMousePosition.x = x;
 		_currentMousePosition.y = y;
 
-		CheckJumpZones();
+		DISPATCH_ASYNC_SERIAL(_inputQueue, std::bind(&CCMain::CheckJumpZones, this));
 	}
 }
 
