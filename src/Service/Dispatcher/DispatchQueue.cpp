@@ -65,15 +65,17 @@ void DispatchQueue::RunJob(DispatchJob& job)
 
 	// run the job
 	job();
+
+	std::lock_guard<std::mutex> lock(_queueMutex);
 	_isRunningJob = false;
 }
 
 bool DispatchQueue::GetRunnableJob(DispatchJob* outJob)
 {
+	std::lock_guard<std::mutex> lock(_queueMutex);
+
 	if (_isSerial && _isRunningJob)
 		return false;
-
-	std::lock_guard<std::mutex> lock(_queueMutex);
 
 	if (!_queue.empty())
 	{

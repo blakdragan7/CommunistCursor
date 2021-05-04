@@ -30,7 +30,7 @@ DispatchQueue* DispatchManager::GetConcurentQueueWithLeastJobs()
 		else
 		{
 			queue = itr.second;
-			numJobs = queue->NumberOfJobs();
+			if(queue) numJobs = queue->NumberOfJobs();
 		}
 	}
 

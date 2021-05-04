@@ -4,6 +4,7 @@
 #include <mutex>
 #include <vector>
 #include <string>
+
 #include "DispatchJob.h"
 
 typedef std::vector<DispatchJob>::iterator QueueIterator;
