@@ -60,6 +60,7 @@ private:
 	void RemoveLostEntites();
 
 	void BroadcastAll();
+	void FindServer();
 
 	bool ProcessInputEvent(OSEvent osEvent);
 	void SetupLocalEntity(bool isServer);

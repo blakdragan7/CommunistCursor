@@ -87,7 +87,7 @@ void CCClient::ConnectToServer(std::shared_ptr<CCNetworkEntity> localEntity, std
 
 void CCClient::StopClientSocket()
 {
-	if (_internalSocket.get())
+	if (_internalSocket)
 	{
 		_internalSocket->Close();
 		_internalSocket.reset();

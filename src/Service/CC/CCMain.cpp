@@ -360,21 +360,26 @@ void CCMain::StartServerMain()
 #endif
 }
 
-void CCMain::StartClientMain()
+void CCMain::FindServer()
 {
-	SetupLocalEntity(false);
-
 	CCBroadcastManager broadcastReceiver(SOCKET_ANY_ADDRESS, 1046);
-
-	_clientShouldRun = true;
 	BServerAddress address;
 	// intentionally blocks because we need to know the server address before we can do anything else
-	while (broadcastReceiver.ListenForBroadcasts(&address) == false);
+	while (broadcastReceiver.ListenForBroadcasts(&address) == false && _clientShouldRun);
 
 	LOG_INFO << "Address: " << address.first << " Port: " << address.second << std::endl;
 
 	// This connects to the server and then tells the server everything it needs to know about us
 	_client->ConnectToServer(_localEntity, address.first, address.second);
+}
+
+void CCMain::StartClientMain()
+{
+	SetupLocalEntity(false);
+
+	_clientShouldRun = true;
+
+	FindServer();
 
 #if REGISTER_OS_EVENTS_CLIENT
 	OSInterface::SharedInterface().RegisterForOSEvents(this);
@@ -539,6 +544,8 @@ void CCMain::LostServer()
 	// force client to re-listen for server
 	_client->StopClientSocket();
 	_client->SetNeedsNewServer();
+
+	FindServer();
 }
 
 const std::vector<std::shared_ptr<CCNetworkEntity>>& CCMain::GetEntitiesToConfigure() const

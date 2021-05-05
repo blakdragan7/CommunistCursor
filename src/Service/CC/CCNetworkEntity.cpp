@@ -884,7 +884,7 @@ void CCNetworkEntity::HeartbeatThread()
 {
     NETCPPacketHeader hearbeat((char)TCPPacketType::Heartbeat);
 
-    if (_tcpServerCommandSocket->IsConnected() == false)
+    if (_tcpServerCommandSocket && _tcpServerCommandSocket->IsConnected() == false)
     {
         std::lock_guard<std::mutex> lock(_tcpMutex);
         SocketError error = _tcpServerCommandSocket->Connect();
@@ -953,7 +953,7 @@ void CCNetworkEntity::HeartbeatThread()
 void CCNetworkEntity::ClientUpdateThread()
 {
 
-    if (_tcpClientUpdateSocket->IsConnected() == false)
+    if (_tcpClientUpdateSocket && _tcpClientUpdateSocket->IsConnected() == false)
     {
         LOG_DEBUG << "Client " << this->_entityName << " No Longer Connected, Updates impossible" << std::endl;
         return;
@@ -966,7 +966,13 @@ void CCNetworkEntity::ClientUpdateThread()
     {
         LOG_ERROR << "ClientUpdateThread: Error trying to get update from Client " << SOCK_ERR_STR(_tcpClientUpdateSocket, error) << std::endl;
     }
-
+    if (received == 0)
+    {
+        // this is log debug because this will be detected and accounted for on the heartbeat thread.
+        // therefore no reason to print it here as well
+        LOG_DEBUG << "ClientUpdateThread: Client disconnected" << std::endl;
+        return;
+    }
     if (received != sizeof(packet) || packet.MagicNumber != P_MAGIC_NUMBER)
     {
         LOG_ERROR << "ClientUpdateThread: Error trying to get update from Client Invalid Packet received" << std::endl;
@@ -977,7 +983,8 @@ void CCNetworkEntity::ClientUpdateThread()
         _delegate->EntityCursorPositionUpdate(this, packet.x + _offsets.x, packet.y + _offsets.y);
     }
 
-    DISPATCH_ASYNC_SERIAL(_clientUpdateQueue, std::bind(&CCNetworkEntity::ClientUpdateThread, this));
+    if(_shouldBeRunningCommThread)
+        DISPATCH_ASYNC_SERIAL(_clientUpdateQueue, std::bind(&CCNetworkEntity::ClientUpdateThread, this));
 }
 
 bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** jumpEntity, JumpDirection& direction)const
