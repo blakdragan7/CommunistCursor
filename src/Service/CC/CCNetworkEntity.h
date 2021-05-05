@@ -172,6 +172,7 @@ public:
     inline bool GetIsServer()const { return _isLocalEntity && _isServer; }
     inline const Point& GetOffsets()const { return _offsets; }
     inline const Rect& GetBounds()const { return _totalBounds; }
+    inline const Rect GetCollision()const { return _totalBounds + _offsets; }
     inline const Socket* GetUDPSocket()const { return _udpCommSocket.get(); }
     inline const bool GetWasGivenOffset()const { return _wasGivenOffset; }
 

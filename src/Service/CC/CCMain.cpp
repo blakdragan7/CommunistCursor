@@ -42,6 +42,11 @@ std::ostream& operator <<(std::ostream& os, const Point& p)
 	return os << "{" << p.x << "," << p.y << "}";
 }
 
+extern std::ostream& operator <<(std::ostream& os, const Rect& r)
+{
+	return os << "[ TopLeft:" << r.topLeft << ", BottomRight:" << r.bottomRight << "]";
+}
+
 std::string BroadcastAddressFromIPAndSubnetMask(std::string IPv4, std::string subnet);
 
 // Info uses tcp 6555
@@ -82,7 +87,15 @@ void CCMain::CheckJumpZones()
 
 		LOG_INFO << "Setting cursor to jump zone on next entity {" << _currentMousePosition.x << "," << _currentMousePosition.y << "}" << std::endl;
 
-		_currentEntity->RPC_SetMousePositionAbsolute(_currentMousePosition.x, _currentMousePosition.y);
+		if (_currentEntity->GetIsLocal())
+		{
+			const Point& offset = _currentEntity->GetOffsets();
+			_currentEntity->RPC_SetMousePositionAbsolute(_currentMousePosition.x - offset.x, _currentMousePosition.y - offset.y);
+		}
+		else
+		{
+			_currentEntity->RPC_SetMousePositionAbsolute(_currentMousePosition.x, _currentMousePosition.y);
+		}
 		_ignoreInputEvent = true;
 	}
 }
@@ -187,13 +200,16 @@ bool CCMain::ProcessInputEvent(OSEvent event)
 	}
 
 	//LOG_INFO << "ProcessInputEvent is local check" << std::endl;
-	if (_currentEntity->GetIsLocal() && isMove)
+	if (_currentEntity->GetIsLocal())
 	{
-		_currentMousePosition.x = origX;
-		_currentMousePosition.y = origY;
+		if (isMove)
+		{
+			const Point& offsets = _localEntity->GetOffsets();
+			_currentMousePosition.x = origX + offsets.x;
+			_currentMousePosition.y = origY + offsets.y;
 
-		CheckJumpZones();
-		
+			CheckJumpZones();
+		}
 		return false;
 	}
 	else if (isMove && !_ignoreInputEvent)

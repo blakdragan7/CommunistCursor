@@ -589,7 +589,7 @@ const std::shared_ptr<CCDisplay> CCNetworkEntity::DisplayForPoint(const Point& p
 
 bool CCNetworkEntity::PointIntersectsEntity(const Point& p) const
 {
-    Rect collision = _totalBounds;
+    Rect collision = _totalBounds + _offsets;
 
     return collision.topLeft.x <= p.x && collision.topLeft.y <= p.y \
         && collision.bottomRight.x >= p.x && collision.bottomRight.y >= p.y;;
@@ -597,14 +597,8 @@ bool CCNetworkEntity::PointIntersectsEntity(const Point& p) const
 
 void CCNetworkEntity::AddEntityIfInProximity(CCNetworkEntity* entity)
 {
-    Rect collision = _totalBounds;
-    Rect otherCollision = entity->_totalBounds;
-
-    collision.topLeft = collision.topLeft + _offsets;
-    collision.bottomRight = collision.bottomRight + _offsets;
-
-    otherCollision.topLeft = otherCollision.topLeft + entity->_offsets;
-    otherCollision.bottomRight = otherCollision.bottomRight + entity->_offsets;
+    Rect collision = _totalBounds + _offsets;
+    Rect otherCollision = entity->_totalBounds + entity->_offsets;
 
     // create test collision Rects, possibly cache these
 
@@ -988,19 +982,17 @@ void CCNetworkEntity::ClientUpdateThread()
 
 bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** jumpEntity, JumpDirection& direction)const
 {
-    Rect collision = _totalBounds;
+    Rect collision = _totalBounds + _offsets;
 
     if (p.y < (collision.topLeft.y + _jumpBuffer))
     {
         for (auto entity : _topEntites)
         {
-            p.x = entity->_totalBounds.topLeft.x + p.x - collision.topLeft.x + \
-                _offsets.x - entity->_offsets.x;
-            p.y = entity->_totalBounds.bottomRight.y - _jumpBuffer;
+            const Rect& col = entity->GetCollision();
+            p.y = col.bottomRight.y - _jumpBuffer;
 
-           // LOG_DEBUG << "Checking Point " << p << std::endl;
-
-            if (entity->PointIntersectsEntity({ p.x, p.y - _jumpBuffer }))
+            //LOG_DEBUG << "Checking Point UP " << p << " against " << col << std::endl;
+            if (entity->PointIntersectsEntity(p))
             {
                 *jumpEntity = entity;
                 direction = JumpDirection::UP;
@@ -1012,12 +1004,10 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
     {
         for (auto entity : _bottomEntites)
         {
-            p.x = entity->_totalBounds.topLeft.x + p.x - collision.topLeft.x + \
-                _offsets.x - entity->_offsets.x;
-            p.y = entity->_totalBounds.bottomRight.y + _jumpBuffer;
-
-            //LOG_DEBUG << "Checking Point " << p << std::endl;
-            if (entity->PointIntersectsEntity({ p.x, p.y + _jumpBuffer }))
+            const Rect& col = entity->GetCollision();
+            p.y = col.topLeft.y + _jumpBuffer;
+            //LOG_DEBUG << "Checking Point DOWN" << p << " against " << col << std::endl;
+            if (entity->PointIntersectsEntity(p))
             {
                 *jumpEntity = entity;
                 direction = JumpDirection::DOWN;
@@ -1029,11 +1019,11 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
     {
         for (auto entity : _leftEntites)
         {
-            p.x = entity->_totalBounds.bottomRight.x - _jumpBuffer;
-            p.y = entity->_totalBounds.topLeft.y + p.y - collision.topLeft.y + \
-                _offsets.y - entity->_offsets.y;
-           //LOG_DEBUG << "Checking Point " << p << std::endl;
-            if (entity->PointIntersectsEntity({ p.x - _jumpBuffer, p.y }))
+            const Rect& col = entity->GetCollision();
+            p.x = col.bottomRight.x - _jumpBuffer;
+
+            //LOG_DEBUG << "Checking Point LEFT" << p << " against " << col << std::endl;
+            if (entity->PointIntersectsEntity(p))
             {
                 *jumpEntity = entity;
                 direction = JumpDirection::LEFT;
@@ -1045,11 +1035,10 @@ bool CCNetworkEntity::GetEntityForPointInJumpZone(Point& p, CCNetworkEntity** ju
     {
         for (auto entity : _rightEntites)
         {
-            p.x = entity->_totalBounds.topLeft.x + _jumpBuffer;
-            p.y = entity->_totalBounds.topLeft.y + p.y - collision.topLeft.y + \
-                _offsets.y - entity->_offsets.y;
-            //LOG_DEBUG << "Checking Point " << p << std::endl;
-            if (entity->PointIntersectsEntity({ p.x + _jumpBuffer, p.y }))
+            const Rect& col = entity->GetCollision();
+            p.x = col.topLeft.x + _jumpBuffer;
+            //LOG_DEBUG << "Checking Point RIGHT " << p << " against " << col << std::endl;
+            if (entity->PointIntersectsEntity(p))
             {
                 *jumpEntity = entity;
                 direction = JumpDirection::RIGHT;
