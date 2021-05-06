@@ -357,7 +357,7 @@ SocketError CCNetworkEntity::HandleServerTCPComm(Socket* server)
 
 void CCNetworkEntity::HandleServerTCPCommJob(Socket* server)
 {
-    if (HandleServerTCPComm(server) != SocketError::SOCKET_E_SUCCESS)
+    if (server && (HandleServerTCPComm(server) != SocketError::SOCKET_E_SUCCESS))
     {
         delete server;
         server = 0;
@@ -415,7 +415,7 @@ CCNetworkEntity::CCNetworkEntity(std::string entityID, std::string entityName, b
 _shouldBeRunningCommThread(true), _delegate(0), _wasGivenOffset(false), _udpCommQueue(0), _isServer(isServer), _isActive(false)
 {
     // this is local so we make the server here
-    int port = 1045; // this should be configured somehow at some point
+    int port = 10045; // this should be configured somehow at some point
     if (isServer == false)
     {
         _tcpServerCommandSocket = std::make_unique<Socket>(SOCKET_ANY_ADDRESS, port, false, SocketProtocol::SOCKET_P_TCP);
@@ -439,7 +439,7 @@ _isLocalEntity(false), _shouldBeRunningCommThread(true), _delegate(0), _wasGiven
 {
     // this is a remote entity so we create a tcp client here
     std::string address = udpSocket->Address();
-    int port = 1045; // this should be configured somehow at some point
+    int port = 10045; // this should be configured somehow at some point
 
     // this is our comm socket, we don't need to do anything else at this point with it
     _tcpServerCommandSocket = std::make_unique<Socket>(address, port, false, SocketProtocol::SOCKET_P_TCP);
